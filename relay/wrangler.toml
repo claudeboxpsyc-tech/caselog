@@ -1,0 +1,8 @@
+name = "caselog-relay"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "caselog-relay"
+database_id = "REPLACE-WITH-YOUR-D1-DATABASE-ID"
