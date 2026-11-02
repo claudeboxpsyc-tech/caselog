@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.workers.dev; media-src 'self' blob: mediastream:; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="theme-color" content="#EEF3F2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0D191D" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Case Log">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Case Log</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/ahn-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/jsQR.js" defer></script>
+  <script src="app.js" type="module"></script>
+</head>
+<body>
+  <div id="boot" class="boot">Opening Case Log…</div>
+
+  <div id="shell" hidden>
+    <div id="sync-banner" class="sync-banner" role="status" hidden></div>
+    <main>
+
+      <!-- Log a case -->
+      <section id="view-log" class="view" aria-labelledby="log-title">
+        <header class="view-head">
+          <h1 id="log-title">Log a case</h1>
+        </header>
+        <form id="log-form" novalidate>
+          <fieldset class="block">
+            <legend>Date</legend>
+            <div class="seg" id="date-seg">
+              <button type="button" data-date="today" aria-pressed="true">Today</button>
+              <button type="button" data-date="yesterday" aria-pressed="false">Yesterday</button>
+              <label class="seg-other" id="date-other">
+                <span id="date-other-text">Other day</span>
+                <input type="date" id="log-date" aria-label="Choose another day">
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="block">
+            <legend>Procedures</legend>
+            <div class="role-line">
+              <span>You were</span>
+              <div class="seg" id="role-seg">
+                <button type="button" data-role="primary" aria-pressed="true">Primary surgeon</button>
+                <button type="button" data-role="assistant" aria-pressed="false">Assistant</button>
+              </div>
+            </div>
+            <div id="quick-picks" class="chips" aria-label="Frequent procedures"></div>
+            <div class="search">
+              <input id="proc-search" type="search" placeholder="Search all procedures" autocomplete="off"
+                     enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                     aria-controls="proc-results" aria-label="Search all procedures">
+              <ul id="proc-results" class="results" role="listbox" hidden></ul>
+            </div>
+            <ul id="picked" class="picked" aria-label="Procedures in this operation"></ul>
+            <p class="hint" id="picked-hint" hidden>One operation, logged once. It counts as the most significant
+              procedure whose syllabus target isn't met yet; the others are listed with it.</p>
+          </fieldset>
+
+          <fieldset class="block">
+            <legend>Patient</legend>
+            <div class="row3">
+              <label class="field"><span>Record no.</span>
+                <input id="f-record" inputmode="numeric" autocomplete="off" maxlength="40">
+              </label>
+              <label class="field"><span>Initials</span>
+                <input id="f-initials" autocapitalize="characters" autocomplete="off" maxlength="10">
+              </label>
+              <label class="field"><span>Age</span>
+                <input id="f-age" inputmode="decimal" autocomplete="off" maxlength="5">
+              </label>
+            </div>
+            <p class="hint">The IMA list needs a record number or initials, plus age. No names or ID numbers.</p>
+          </fieldset>
+
+          <fieldset class="block">
+            <legend>Attending</legend>
+            <div id="attending-chips" class="chips"></div>
+            <input id="f-attending" list="attending-list" placeholder="Name of the senior surgeon" autocomplete="off"
+                   aria-label="Attending" maxlength="80">
+            <datalist id="attending-list"></datalist>
+          </fieldset>
+
+          <details class="block more">
+            <summary>Department and notes</summary>
+            <label class="field"><span>Department or hospital</span>
+              <input id="f-site" list="site-list" autocomplete="off" maxlength="80">
+            </label>
+            <datalist id="site-list"></datalist>
+            <label class="field"><span>Notes</span>
+              <textarea id="f-notes" rows="2" maxlength="500" placeholder="Leave out names and ID numbers"></textarea>
+            </label>
+          </details>
+
+          <div class="save-bar">
+            <button class="btn primary big" id="save-btn" type="submit">Save case</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Progress against the syllabus -->
+      <section id="view-progress" class="view" aria-labelledby="progress-title" hidden>
+        <header class="view-head">
+          <h1 id="progress-title">Progress</h1>
+          <p class="sub" id="syllabus-name"></p>
+          <p class="sub" id="progress-asof" hidden></p>
+        </header>
+        <div class="overall">
+          <span class="overall-num" id="overall-pct">0%</span>
+          <p>of syllabus targets met</p>
+          <p class="muted" id="overall-cases"></p>
+        </div>
+        <button type="button" class="notice" id="incomplete-notice" hidden></button>
+        <div class="role-line">
+          <span>Order</span>
+          <div class="seg" id="sort-seg">
+            <button type="button" data-sort="syllabus" aria-pressed="true">Syllabus</button>
+            <button type="button" data-sort="todo" aria-pressed="false">Most left to do</button>
+          </div>
+        </div>
+        <p class="legend">
+          <span><i class="k-primary"></i>Primary</span>
+          <span><i class="k-assist"></i>Assistant</span>
+          <span><i class="k-target"></i>Primary target</span>
+        </p>
+        <div id="board"></div>
+      </section>
+
+      <!-- All cases -->
+      <section id="view-cases" class="view" aria-labelledby="cases-title" hidden>
+        <header class="view-head">
+          <h1 id="cases-title">Cases</h1>
+          <p class="sub" id="cases-count"></p>
+        </header>
+        <div class="filters">
+          <input id="cases-q" type="search" placeholder="Search procedure, record no., attending" autocomplete="off"
+                 aria-label="Search cases">
+          <label class="toggle"><input type="checkbox" id="cases-incomplete"> Missing record no., initials or age</label>
+          <div class="filter-chip" id="cases-cat-filter" hidden>
+            <span id="cases-cat-label"></span>
+            <button type="button" class="btn quiet" id="cases-cat-clear">Show all</button>
+          </div>
+        </div>
+        <div id="cases-list"></div>
+        <button type="button" id="cases-more" class="btn quiet" hidden>Show more</button>
+      </section>
+
+      <!-- Exports, settings -->
+      <section id="view-more" class="view" aria-labelledby="more-title" hidden>
+        <header class="view-head">
+          <h1 id="more-title">More</h1>
+        </header>
+
+        <div class="panel" id="sync-panel">
+          <h2>Sync with your other device</h2>
+          <div id="sync-unset" hidden>
+            <p>Sync isn't set up in this copy of Case Log yet: its relay address is missing (see SETUP.md).</p>
+          </div>
+          <div id="sync-off" class="stack" hidden>
+            <p>Pair your phone and computer once; after that every case you save on one shows up on the other.
+              Cases are encrypted on the device with a key only your devices have. The sync service can't read them.</p>
+            <p>On the first device, tap <strong>Set up sync</strong>. On the second, tap <strong>Pair with my other
+              device</strong> and scan the code the first one shows.</p>
+            <button type="button" class="btn primary" id="sync-start">Set up sync on this device</button>
+            <button type="button" class="btn" id="sync-join">Pair with my other device</button>
+          </div>
+          <div id="sync-on" class="stack" hidden>
+            <p id="sync-state" role="status"></p>
+            <button type="button" class="btn" id="sync-now">Sync now</button>
+            <button type="button" class="btn" id="sync-show">Pair another device</button>
+            <button type="button" class="btn danger" id="sync-unpair">Stop syncing on this device</button>
+            <p>The pairing code opens your whole log. Show it only to pair your own devices.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Lists for the specialist title</h2>
+          <p>An Excel file with the IMA summary list, the detailed list sorted by type, and every case in one table.
+            Leave the dates empty to include everything.</p>
+          <div class="stack">
+            <div class="two">
+              <label class="field"><span>From</span><input type="date" id="exp-from"></label>
+              <label class="field"><span>To</span><input type="date" id="exp-to"></label>
+            </div>
+            <button type="button" class="btn primary" id="exp-ima">Download Excel lists</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Your name on the lists</h2>
+          <div class="stack">
+            <input id="set-name" autocomplete="name" maxlength="80" aria-label="Your name">
+            <button type="button" class="btn" id="set-name-save">Save name</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Backup and import</h2>
+          <p>Your paired devices are copies of each other. A CSV file is your own extra copy, and imports cases logged
+            somewhere else, such as the NAS version of Case Log.</p>
+          <div class="stack">
+            <button type="button" class="btn" id="exp-csv">Download backup (CSV)</button>
+            <label class="btn" id="import-label" for="import-file">Import from CSV</label>
+            <input type="file" id="import-file" accept=".csv,text/csv" hidden>
+            <p id="import-result" role="status"></p>
+            <p>Columns: <code>date, procedure, category, role, approach, record_no, initials, age, attending, site,
+              notes, also</code>. One row per operation. Category uses the keys in a backup file, role is
+              <code>primary</code> or <code>assistant</code>, and <code>also</code> lists other procedures done in
+              the same operation, separated by <code>|</code>. Cases already in the log are skipped.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Add to your home screen</h2>
+          <p>iPhone: open this page in Safari, tap Share, then Add to Home Screen, and always open Case Log from that
+            icon: Safari can clear data of sites that aren't on the home screen. Android: open the browser menu and tap
+            Add to Home screen or Install app. Computer: Chrome and Edge offer an install button in the address bar.</p>
+        </div>
+
+        <div class="panel">
+          <h2>About</h2>
+          <p id="about-text"></p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabs" aria-label="Sections">
+      <button type="button" data-view="log" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Log
+      </button>
+      <button type="button" data-view="progress">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h13"/></svg>
+        Progress
+      </button>
+      <button type="button" data-view="cases">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 4v16M9 4v16M13 4v16M17 4v16M3 15l18-6"/></svg>
+        Cases
+      </button>
+      <button type="button" data-view="more">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        More
+      </button>
+    </nav>
+  </div>
+
+  <!-- Edit one case -->
+  <dialog id="edit-dialog" aria-labelledby="edit-title">
+    <form id="edit-form" class="dialog-body" method="dialog" novalidate>
+      <h2 id="edit-title" tabindex="-1">Edit case</h2>
+      <label class="field"><span>Date</span><input type="date" id="e-date" required></label>
+      <label class="field"><span>Procedure</span>
+        <input id="e-procedure" list="all-procedures" autocomplete="off" maxlength="120" required></label>
+      <datalist id="all-procedures"></datalist>
+      <label class="field"><span>Syllabus category</span><select id="e-category"></select></label>
+      <label class="field"><span>Also done in this operation (one per line, not counted)</span>
+        <textarea id="e-also" rows="2" maxlength="1200"></textarea></label>
+      <div class="field"><span>Your role</span>
+        <div class="seg" id="e-role">
+          <button type="button" data-role="primary" aria-pressed="true">Primary surgeon</button>
+          <button type="button" data-role="assistant" aria-pressed="false">Assistant</button>
+        </div>
+      </div>
+      <label class="field"><span>Approach</span><select id="e-approach">
+        <option value="">Not recorded</option>
+        <option value="open">Open</option>
+        <option value="lap">Laparoscopic</option>
+        <option value="robotic">Robotic</option>
+        <option value="endo">Endoscopic</option>
+        <option value="perc">Percutaneous</option>
+      </select></label>
+      <div class="row3">
+        <label class="field"><span>Record no.</span><input id="e-record" inputmode="numeric" maxlength="40"></label>
+        <label class="field"><span>Initials</span><input id="e-initials" autocapitalize="characters" maxlength="10"></label>
+        <label class="field"><span>Age</span><input id="e-age" inputmode="decimal" maxlength="5"></label>
+      </div>
+      <label class="field"><span>Attending</span><input id="e-attending" list="attending-list" maxlength="80"></label>
+      <label class="field"><span>Department or hospital</span><input id="e-site" list="site-list" maxlength="80"></label>
+      <label class="field"><span>Notes</span><textarea id="e-notes" rows="2" maxlength="500"></textarea></label>
+      <p class="error" id="edit-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger" id="e-delete">Delete</button>
+        <div class="right">
+          <button type="button" class="btn" id="e-cancel">Cancel</button>
+          <button type="submit" class="btn primary" id="e-save">Save changes</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Show the pairing code -->
+  <dialog id="show-dialog" aria-labelledby="show-title">
+    <div class="dialog-body">
+      <h2 id="show-title">Pair your other device</h2>
+      <p>On your other device, open Case Log, go to More, tap <b>Pair with my other device</b>, and scan this code.
+        On a computer without a camera, copy the code below and paste it there instead.</p>
+      <canvas id="qr-canvas" class="qr" aria-label="Pairing QR code"></canvas>
+      <label class="field"><span>Pairing code</span>
+        <input id="pair-code" readonly></label>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="copy-code">Copy code</button>
+        <div class="right"><button type="button" class="btn primary" id="show-close">Done</button></div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Join by scanning or pasting -->
+  <dialog id="join-dialog" aria-labelledby="join-title">
+    <form class="dialog-body" id="join-form" method="dialog" novalidate>
+      <h2 id="join-title">Pair with my other device</h2>
+      <p>On the device you set sync up on, open More and tap <b>Pair another device</b>. Point this camera at its code,
+        or paste the code.</p>
+      <div class="scan" id="scan-box" hidden><video id="scan-video" playsinline muted></video></div>
+      <label class="field"><span>Or paste the code</span>
+        <input id="join-input" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <p class="error" id="join-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="join-cancel">Cancel</button>
+        <div class="right"><button type="submit" class="btn primary">Pair</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toast-text"></span>
+    <button type="button" id="toast-action" hidden></button>
+  </div>
+</body>
+</html>
