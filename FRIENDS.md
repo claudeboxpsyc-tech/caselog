@@ -1,7 +1,8 @@
 # Case Log: getting started
 
-Case Log tracks your operations against the IMA urology syllabus and makes the Excel lists for
-the specialist title. It runs in your browser, works offline, and keeps your cases on your own
+Case Log tracks your operations against your IMA residency syllabus (urology, or general surgery
+2022 or 2008) and makes the Excel lists for the specialist title. The first time you open it,
+choose your syllabus; on your second device, pair instead and it takes the same one. It runs in your browser, works offline, and keeps your cases on your own
 devices. Nothing is sent anywhere unless you pair a second device, and then only encrypted.
 
 ## 1. Install it (2 minutes per device)
@@ -34,9 +35,9 @@ already paired.
 **Log** tab: tap the procedure (your most-used ones rise to the top), fill in record number or
 initials and age, and tap **Save**. Primary surgeon is the default role.
 
-- Mark everything done in the operation; Case Log counts it under the most significant procedure
-  whose syllabus slots aren't full yet. Obvious companions (cystoscopy with TURBT or TURP) are
-  added for you.
+- Mark everything done in the operation. In urology and general surgery 2008 it counts under the
+  most significant procedure whose syllabus slots aren't full yet. In general surgery 2022, up to 3
+  procedures in one operation each count, as in the IMA reporting system.
 - No signal in the OR? Save anyway. It syncs when you're back online.
 
 **Progress** shows how far you are in each category. **Cases** lets you search, edit or delete.

@@ -1,7 +1,8 @@
 # Case Log (server-free version)
 
-A surgical case log for urology residents in Israel, tracked against the IMA urological surgery
-syllabus (2022, v2.0). It runs entirely in the browser as an installable web app; cases are kept in
+A surgical case log for residents in Israel, tracked against an IMA residency syllabus: urology
+(2022, v2.0), general surgery 2022 (skills-based) or general surgery 2008 (v1.0), chosen at first
+open and shared by a resident's paired devices. It runs entirely in the browser as an installable web app; cases are kept in
 the device's storage (IndexedDB) and synced between one person's devices through an end-to-end
 encrypted relay.
 
@@ -27,7 +28,8 @@ device to write to a room claims it, so a room can't be written to without the t
 | `index.html`, `style.css`, `app.js` | The app's screens |
 | `local.js` | Storage, case rules, CSV import and export |
 | `sync.js` | Pairing, encryption and sync |
-| `syllabus.js` | Syllabus categories, targets and procedures |
+| `syllabus.js`, `gs2022.js`, `gs2008.js` | Each syllabus: categories, targets per role, procedures |
+| `syllabi.js` | The list of syllabi and the counting rules they share |
 | `exports.js`, `xlsx.js` | The IMA Excel workbook |
 | `config.js` | The relay's address |
 | `sw.js`, `manifest.webmanifest` | Offline use and installing to the home screen |

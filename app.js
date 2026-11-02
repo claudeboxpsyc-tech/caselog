@@ -6,6 +6,7 @@
 import * as L from "./local.js";
 import * as Sync from "./sync.js";
 import { imaWorkbook } from "./exports.js";
+import { SYLLABI, SYLLABUS_ORDER, roleLabel, columnsFor, addCase as addToCounts, remaining, share, overallShare } from "./syllabi.js";
 import qrcode from "./vendor/qrcode.mjs";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -20,6 +21,7 @@ const state = {
   procedures: [],
   picked: [],
   mainUid: null, // set when the user overrides which marked procedure the operation counts as
+  forced: [], // where several procedures count per operation: the ones the user chose to count
   role: "primary",
   date: "today",
   sort: "syllabus",
@@ -164,14 +166,65 @@ function applyMeta() {
 
   const sel = $("#e-category");
   sel.replaceChildren(...categoryOptions());
+  if (state.syllabusId !== m.syllabus_id) {
+    // The syllabus changed (here or on a paired device): start the form over with its roles.
+    state.syllabusId = m.syllabus_id;
+    state.picked = [];
+    state.forced = [];
+    state.mainUid = null;
+    if (!syl.roles.some((r) => r.key === state.role)) state.role = "primary";
+  }
+  renderRoles();
+  renderSyllabusPanel();
+  $("#picked-hint").textContent = syl.per_operation > 1
+    ? `Up to ${syl.per_operation} different procedures in one operation each count, as they're reported in the IMA ` +
+      "system; each is saved as its own line. Others are listed with them."
+    : "One operation, logged once. It counts as the most significant procedure whose syllabus target isn't met " +
+      "yet; the others are listed with it.";
   $("#syllabus-name").textContent = syl.name;
   $("#set-name").value = m.settings.resident_name || "";
-  $("#about-text").textContent =
-    `Targets come from the appendix to the IMA ${syl.name.toLowerCase()}. ` +
-    `"In children" counts patients under ${syl.child_age_limit}. Laparoscopic and robotic kidney or adrenal cases ` +
-    "count toward the minimally invasive target. When an operation has several procedures, it counts as the most " +
-    "significant one whose targets aren't met yet. Your cases are stored on this device (and on your other devices " +
-    "once you pair them); the sync service only ever sees them encrypted.";
+  $("#about-text").textContent = aboutText(syl);
+}
+
+function aboutText(syl) {
+  const where = "Your cases are stored on this device (and on your other devices once you pair them); the sync " +
+    "service only ever sees them encrypted.";
+  if (syl.id === "uro2022") {
+    return `Targets come from the appendix to the IMA ${syl.name.toLowerCase()}. "In children" counts patients under ` +
+      `${syl.child_age_limit}. Laparoscopic and robotic kidney or adrenal cases count toward the minimally invasive ` +
+      "target. When an operation has several procedures, it counts as the most significant one whose targets aren't " +
+      `met yet. ${where}`;
+  }
+  if (syl.id === "gs2022") {
+    return "Targets come from appendix A (the operations syllabus) of the IMA general surgery syllabus 2022. " +
+      "Resident-instructor cases count in the primary surgeon column and toward the 60 instructor cases. Up to 3 " +
+      "different procedures in one operation each count. Laparoscopic and open targets, and the complex and basic " +
+      "laparoscopic totals, count primary surgeon and instructor cases; robotic counts as laparoscopic. Set your " +
+      `residency start date in More to see the yearly targets. ${where}`;
+  }
+  return "Targets come from the detailed list in the IMA general surgery syllabus 2008, version 1.0. The list for " +
+    "the specialist title has operations as first surgeon and as first assistant-instructor; \"participation\" " +
+    "targets count first assistant and first assistant-instructor cases. Recurrent hernias and acute or trauma " +
+    "laparotomies count when you log them under those procedure names. When an operation has several procedures, " +
+    `it counts as the most significant one whose targets aren't met yet. ${where}`;
+}
+
+function roleButtons(container) {
+  container.replaceChildren(...state.meta.syllabus.roles.map((r) =>
+    h("button", { type: "button", "data-role": r.key, title: r.long, "aria-pressed": "false" }, r.en)));
+}
+
+function renderRoles() {
+  roleButtons($("#role-seg"));
+  roleButtons($("#e-role"));
+  setRole(state.role, false);
+}
+
+function renderSyllabusPanel() {
+  const syl = state.meta.syllabus;
+  $("#syl-current").textContent = syl.name;
+  $("#start-row").hidden = !syl.per_year;
+  $("#set-start").value = state.meta.settings.residency_start || "";
 }
 
 function categoryOptions(withBlank = false) {
@@ -270,6 +323,7 @@ function addCompanions(pick) {
 // Unmark a procedure, and any procedure that was marked automatically only because of it.
 function removePick(p, render = true) {
   state.picked = state.picked.filter((x) => x !== p);
+  state.forced = state.forced.filter((u) => u !== p.uid);
   for (const x of state.picked) x.parents = x.parents.filter((u) => u !== p.uid);
   state.picked = state.picked.filter((x) => !(x.auto && !x.parents.length));
   if (!state.picked.some((x) => x.uid === state.mainUid)) state.mainUid = null;
@@ -284,19 +338,7 @@ function weightOf(p) {
   return state.catByKey[p.category].weight;
 }
 
-// Add one logged operation to a map of category counts.
-function addCase(map, c) {
-  const p = map[c.category];
-  if (!p) return;
-  const age = c.age === "" || c.age === null || c.age === undefined ? null : Number(c.age);
-  const child = c.child !== undefined ? c.child : age !== null && age < state.meta.syllabus.child_age_limit;
-  p.total_done += 1;
-  if (c.role === "primary") p.primary_done += 1;
-  for (const s of p.sub) {
-    if (s.kind === "children" && child) s.done += 1;
-    if (s.kind === "minimally_invasive" && (c.approach === "lap" || c.approach === "robotic")) s.done += 1;
-  }
-}
+const cloneCounts = (p) => ({ cols: { ...p.cols }, sub: p.sub.map((x) => ({ ...x })) });
 
 // Would logging this procedure, with this role and patient age, bring its syllabus targets
 // closer? False once those targets are met: an assistant case when only primary-surgeon cases
@@ -305,8 +347,9 @@ function stillNeeded(pick, counts, role, age) {
   const cat = state.catByKey[pick.category];
   const before = cat && counts[pick.category];
   if (!before) return false;
-  const after = { total_done: before.total_done, primary_done: before.primary_done, sub: before.sub.map((x) => ({ ...x })) };
-  addCase({ [pick.category]: after }, { category: pick.category, role, age, approach: pick.approach });
+  const after = cloneCounts(before);
+  addToCounts(state.meta.syllabus, { [pick.category]: after },
+    { category: pick.category, role, age, approach: pick.approach, procedure: pick.name });
   return remaining(cat, after) < remaining(cat, before);
 }
 
@@ -328,6 +371,20 @@ function rankPicks() {
 // The procedure an operation counts as: the user's choice if they made one, otherwise the most
 // significant marked procedure whose syllabus targets aren't met yet (TURBT + cystoscopy -> TURBT,
 // or cystoscopy once the TURBT targets are met). If every one is met, the most significant.
+// Where several procedures count per operation (general surgery 2022: up to 3), the ones that
+// count: those the user chose, then the most significant ones still needed, then the rest.
+function countedPicks(ranked = rankPicks()) {
+  const k = state.meta.syllabus.per_operation || 1;
+  if (k === 1) {
+    const m = mainPick(ranked);
+    return m ? [m] : [];
+  }
+  const withCat = ranked.filter((r) => r.p.category);
+  const forced = state.forced.map((u) => state.picked.find((p) => p.uid === u)).filter(Boolean);
+  const order = [...forced, ...withCat.filter((r) => r.needed).map((r) => r.p), ...withCat.map((r) => r.p)];
+  return [...new Set(order)].slice(0, k);
+}
+
 function mainPick(ranked = rankPicks()) {
   const chosen = state.picked.find((p) => p.uid === state.mainUid);
   if (chosen) return chosen;
@@ -355,7 +412,9 @@ function pickItem(p, kind, needed) {
         class: "count-this",
         "aria-label": `Count this operation as ${p.name} instead`,
         onclick: () => {
-          state.mainUid = p.uid;
+          if ((state.meta.syllabus.per_operation || 1) > 1) {
+            state.forced = [p.uid, ...state.forced.filter((u) => u !== p.uid)].slice(0, state.meta.syllabus.per_operation);
+          } else state.mainUid = p.uid;
           renderPicked();
         },
       }, "Count this")
@@ -373,7 +432,7 @@ function pickItem(p, kind, needed) {
       renderPicked();
     });
     li.append(sel);
-  } else if (p.category === "kidney" && kind !== "extra") {
+  } else if (cat.ask_approach && kind !== "extra") {
     const opts = [["open", "Open"], ["lap", "Laparoscopic"], ["robotic", "Robotic"]];
     li.append(h("div", { class: "seg", role: "group", "aria-label": `Approach for ${p.name}` },
       ...opts.map(([v, label]) => h("button", {
@@ -392,22 +451,22 @@ function renderPicked() {
   const list = $("#picked");
   const ranked = rankPicks();
   const needed = new Map(ranked.map((r) => [r.p, r.needed]));
-  const main = mainPick(ranked);
+  const counted = countedPicks(ranked);
   if (state.picked.length < 2) {
     list.replaceChildren(...state.picked.map((p) => pickItem(p, "single", needed.get(p))));
   } else {
     list.replaceChildren(
-      pickItem(main, "main", needed.get(main)),
-      ...ranked.filter((r) => r.p !== main).map((r) => pickItem(r.p, "extra", r.needed)));
+      ...counted.map((p) => pickItem(p, "main", needed.get(p))),
+      ...ranked.filter((r) => !counted.includes(r.p)).map((r) => pickItem(r.p, "extra", r.needed)));
   }
   $("#picked-hint").hidden = state.picked.length < 2;
   renderQuickPicks();
 }
 
-function setRole(role) {
+function setRole(role, render = true) {
   state.role = role;
   $$("#role-seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
-  renderPicked();
+  if (render) renderPicked();
 }
 
 function setDate(mode) {
@@ -535,76 +594,76 @@ function fillPatient(p) {
 function resetLogForm() {
   state.picked = [];
   state.mainUid = null;
+  state.forced = [];
   setRole("primary");
   fillPatient({});
   $("#f-notes").value = "";
   setDate("today");
 }
 
-// Fewest further cases that would meet every target in the category: primary cases and
-// "in children" / laparoscopic cases also count toward the total, so take the largest gap.
-function remaining(cat, p) {
-  let left = Math.max(0, cat.total - p.total_done, cat.primary - p.primary_done);
-  for (const s of p.sub) left = Math.max(left, s.n - s.done);
-  return left;
-}
-
-// Share of all syllabus targets met, counted the way the NAS does.
-function overallShare(byKey) {
-  let got = 0;
-  let need = 0;
-  for (const cat of state.meta.syllabus.categories) {
-    const p = byKey[cat.key];
-    got += Math.min(p.total_done, cat.total) + Math.min(p.primary_done, cat.primary);
-    need += cat.total + cat.primary;
-    for (const s of p.sub) {
-      got += Math.min(s.done, s.n);
-      need += s.n;
-    }
-  }
-  return need ? got / need : 0;
-}
-
 function categoryRow(cat, p) {
+  const syl = state.meta.syllabus;
   const left = remaining(cat, p);
-  const pct = (n) => `${Math.min(100, (n / cat.total) * 100)}%`;
+  const sh = share(cat, p);
+  const optional = !sh.need;
+  const t = cat.targets;
+  const bar = h("div", { class: "bar", role: "img" });
   const all = h("i", { class: "bar-all" });
   const prim = h("i", { class: "bar-primary" });
-  const bar = h("div", {
-    class: "bar",
-    role: "img",
-    "aria-label": `${p.total_done} of ${cat.total} logged` +
-      (cat.primary ? `, ${p.primary_done} of ${cat.primary} as primary surgeon` : ""),
-  }, all, prim);
-  if (cat.primary && cat.primary < cat.total) {
-    const tick = h("i", { class: "bar-target" });
-    tick.style.left = `calc(${(cat.primary / cat.total) * 100}% - 1px)`;
-    bar.append(tick);
+  bar.append(all, prim);
+  let countText;
+  if (t.total) {
+    // Urology: every case toward the total, primary-surgeon cases darker, a tick at the primary target.
+    bar.setAttribute("aria-label", `${p.cols.total} of ${t.total} logged` +
+      (t.primary ? `, ${p.cols.primary} of ${t.primary} as primary surgeon` : ""));
+    if (t.primary && t.primary < t.total) {
+      const tick = h("i", { class: "bar-target" });
+      tick.style.left = `calc(${(t.primary / t.total) * 100}% - 1px)`;
+      bar.append(tick);
+    }
+    requestAnimationFrame(() => {
+      all.style.width = `${Math.min(100, (p.cols.total / t.total) * 100)}%`;
+      prim.style.width = `${Math.min(100, (p.cols.primary / t.total) * 100)}%`;
+    });
+    countText = [h("b", {}, p.cols.total), h("span", {}, ` / ${t.total}`)];
+  } else if (!optional) {
+    // Several role columns: cases toward the role targets (laparoscopic / open split them, so they
+    // don't add to the count), and a bar for the share of all this category's targets met.
+    let got = 0;
+    let need = 0;
+    for (const [k, n] of Object.entries(t)) {
+      got += Math.min(p.cols[k] || 0, n);
+      need += n;
+    }
+    bar.setAttribute("aria-label", `${got} of ${need} target cases done`);
+    requestAnimationFrame(() => (prim.style.width = `${Math.min(100, (sh.got / sh.need) * 100)}%`));
+    countText = [h("b", {}, got), h("span", {}, ` / ${need}`)];
+  } else {
+    countText = [h("b", {}, p.cols.total), h("span", {}, " logged")];
   }
-  requestAnimationFrame(() => {
-    all.style.width = pct(p.total_done);
-    prim.style.width = pct(p.primary_done);
-  });
 
   const meta = [];
-  if (cat.primary) {
-    const ok = p.primary_done >= cat.primary;
-    meta.push(h("span", { class: ok ? "ok" : "short" }, `Primary ${p.primary_done} of ${cat.primary}`));
+  for (const col of syl.columns) {
+    const n = t[col.key];
+    if (!n || col.key === "total") continue;
+    const done = p.cols[col.key] || 0;
+    meta.push(h("span", { class: done >= n ? "ok" : "short" }, `${col.short} ${done} of ${n}`));
   }
   for (const s of p.sub) {
     meta.push(h("span", { class: s.done >= s.n ? "ok" : "short" }, `${capitalize(s.en)} ${s.done} of ${s.n}`));
   }
-  meta.push(h("span", { class: left ? null : "ok" }, left ? `${plural(left, "more case", "more cases")} needed` : "Target met"));
+  if (optional) meta.push(h("span", {}, "Not required"));
+  else meta.push(h("span", { class: left ? null : "ok" }, left ? `${plural(left, "more case", "more cases")} needed` : "Target met"));
 
   return h("button", {
     type: "button",
-    class: `cat${left ? "" : " done"}`,
+    class: `cat${left || optional ? "" : " done"}${optional ? " optional" : ""}`,
     onclick: () => showCasesFor(cat.key),
   },
   h("div", { class: "cat-head" },
-    h("span", { class: "cat-name" }, cat.en, he(cat.he)),
-    h("span", { class: "cat-count" }, h("b", {}, p.total_done), h("span", {}, ` / ${cat.total}`))),
-  bar,
+    h("span", { class: "cat-name" }, cat.no ? `${cat.no}. ${cat.en}` : cat.en, he(cat.he)),
+    h("span", { class: "cat-count" }, ...countText)),
+  optional ? null : bar,
   h("p", { class: "cat-meta" }, ...meta));
 }
 
@@ -637,8 +696,10 @@ function caseRow(c) {
   if (c.attending) parts.push(`with ${c.attending}`);
   const line2 = capitalize(parts.join(", "));
   const warn = [];
-  if (!c.record_no && !c.initials) warn.push("record no. or initials");
-  if (noAge) warn.push("age");
+  if (!(cat && cat.no_patient)) {
+    if (!c.record_no && !c.initials) warn.push("record no. or initials");
+    if (noAge) warn.push("age");
+  }
   return h("li", {},
     h("button", {
       type: "button",
@@ -646,11 +707,16 @@ function caseRow(c) {
       onclick: () => openEdit(c),
     },
     h("span", { class: "case-title" }, c.procedure),
-    h("span", { class: `case-role ${c.role}` }, c.role === "primary" ? "Primary" : "Assistant"),
+    h("span", { class: `case-role ${caseAsPrimary(c) ? "primary" : c.role}` }, roleLabel(state.meta.syllabus, c.role)),
     h("span", { class: "case-sub" }, cat ? cat.en : c.category),
     alsoNames(c).length ? h("span", { class: "case-sub" }, `Also: ${alsoNames(c).join(", ")}`) : null,
     h("span", { class: "case-sub" }, line2,
       warn.length ? h("span", { class: "warn" }, `${line2 ? ". " : ""}Missing ${warn.join(" and ")}`) : null)));
+}
+
+function caseAsPrimary(c) {
+  const cat = state.catByKey[c.category];
+  return c.role === "primary" || (!!cat && columnsFor(state.meta.syllabus, cat, c.role).includes("primary"));
 }
 
 function alsoNames(c) {
@@ -793,7 +859,7 @@ async function saveName() {
   }
 }
 
-const VIEWS = ["log", "progress", "cases", "more", "guide"];
+const VIEWS = ["log", "progress", "cases", "more", "guide", "setup"];
 
 function go(view) {
   if (location.hash !== `#${view}`) location.hash = view;
@@ -801,7 +867,13 @@ function go(view) {
 }
 
 function route() {
-  const view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "log";
+  let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "log";
+  // Nothing to count against until a syllabus is chosen.
+  if (!state.meta.syllabus_id && ["log", "progress", "cases"].includes(view)) {
+    history.replaceState(null, "", `${location.pathname}#setup`);
+    view = "setup";
+  }
+  if (view === "setup") renderSetup();
   state.view = view;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
   $$(".tabs button").forEach((b) => {
@@ -827,11 +899,7 @@ function savePrefs(patch) {
 // Counts per syllabus category, from this device's cases.
 function currentCounts() {
   if (!state.progress) return null;
-  const map = {};
-  for (const c of state.progress.categories) {
-    map[c.key] = { total_done: c.total_done, primary_done: c.primary_done, sub: c.sub.map((x) => ({ ...x })) };
-  }
-  return map;
+  return Object.fromEntries(state.progress.categories.map((c) => [c.key, cloneCounts(c)]));
 }
 
 async function saveCase(e) {
@@ -857,24 +925,29 @@ async function saveCase(e) {
     toast("Choose a date.");
     return;
   }
-  const main = mainPick();
-  const others = state.picked.filter((p) => p !== main);
+  const counted = countedPicks();
+  const main = counted[0];
+  const others = state.picked.filter((p) => !counted.includes(p));
   const site = $("#f-site").value.trim();
-  const payload = {
-    client_uid: L.randomId(),
+  const base = {
     date,
     ...patient,
     role: state.role,
-    procedure: main.name,
-    category: main.category,
-    approach: main.approach,
-    also: others.map((p) => ({ procedure: p.name, category: p.category, approach: p.approach })),
     attending: $("#f-attending").value.trim(),
     site,
     notes: $("#f-notes").value.trim(),
   };
+  // One line per counted procedure; the procedures that don't count are listed on the first.
+  const payloads = counted.map((p, i) => ({
+    ...base,
+    client_uid: L.randomId(),
+    procedure: p.name,
+    category: p.category,
+    approach: p.approach,
+    also: i ? [] : others.map((o) => ({ procedure: o.name, category: o.category, approach: o.approach })),
+  }));
   try {
-    await api("/api/cases", { method: "POST", body: payload });
+    for (const body of payloads) await api("/api/cases", { method: "POST", body });
   } catch (ex) {
     toast(ex.message);
     return;
@@ -882,8 +955,12 @@ async function saveCase(e) {
   savePrefs({ site });
   resetLogForm();
   window.scrollTo({ top: 0 });
-  const missing = (!patient.record_no && !patient.initials) || !patient.age;
-  const what = main.name + (others.length ? ` with ${others.map((p) => p.name).join(", ")}` : "");
+  const needsPatient = counted.some((p) => !(state.catByKey[p.category] || {}).no_patient);
+  const missing = needsPatient && ((!patient.record_no && !patient.initials) || !patient.age);
+  const what = counted.length > 1
+    ? `${counted.slice(0, -1).map((p) => p.name).join(", ")} and ${counted[counted.length - 1].name}, each counted` +
+      (others.length ? `, with ${others.map((p) => p.name).join(", ")}` : "")
+    : main.name + (others.length ? ` with ${others.map((p) => p.name).join(", ")}` : "");
   toast(`Saved ${what}.` + (missing ? " Add the missing patient details in Cases." : ""), "Same patient", () => {
     fillPatient(patient);
     $("#proc-search").focus();
@@ -892,14 +969,15 @@ async function saveCase(e) {
 }
 
 // Something changed (here, or arriving from another device): refresh what's on screen.
-function afterChange() {
+async function afterChange() {
   state.cases.stale = true;
-  loadMeta();
+  await loadMeta(); // first: the syllabus itself may have changed on another device
   loadProgress();
   if (state.view === "cases") loadCases();
 }
 
 function loadProgress() {
+  if (!state.meta || state.meta.syllabus !== L.syllabus()) return loadMeta().then(loadProgress);
   state.progress = L.progress();
   state.progressStale = false;
   renderProgress();
@@ -910,7 +988,8 @@ function renderProgress() {
   const pr = state.progress;
   const syl = state.meta.syllabus;
   const byKey = currentCounts();
-  $("#overall-pct").textContent = `${Math.floor(overallShare(byKey) * 100)}%`;
+  $("#overall-pct").textContent = `${Math.floor(overallShare(syl, byKey, pr.overall_targets) * 100)}%`;
+  $("#legend").hidden = !syl.categories.some((c) => c.targets.total);
   $("#overall-cases").textContent = `${plural(pr.total_cases, "procedure", "procedures")} logged`;
   const notice = $("#incomplete-notice");
   notice.hidden = !pr.incomplete;
@@ -920,11 +999,54 @@ function renderProgress() {
   for (const [gkey, g] of Object.entries(syl.groups)) {
     let cats = syl.categories.filter((c) => c.group === gkey);
     if (state.sort === "todo") {
-      cats = cats.slice().sort((a, b) => remaining(b, byKey[b.key]) / b.total - remaining(a, byKey[a.key]) / a.total);
+      const frac = (c) => {
+        const x = share(c, byKey[c.key]);
+        return x.need ? (x.need - x.got) / x.need : -1;
+      };
+      cats = cats.slice().sort((a, b) => frac(b) - frac(a));
     }
     board.append(h("h2", { class: "group-title" }, g.en, he(g.he)));
     for (const cat of cats) board.append(categoryRow(cat, byKey[cat.key]));
   }
+  renderOverallTargets(pr);
+}
+
+// Targets across the whole syllabus, and per residency year (general surgery 2022).
+function renderOverallTargets(pr) {
+  const syl = state.meta.syllabus;
+  const box = $("#overall-targets");
+  box.replaceChildren();
+  if (!pr.overall_targets.length && !syl.per_year) return;
+  box.append(h("h2", { class: "group-title" }, "Across the syllabus", he("סיכום כללי")));
+  for (const o of pr.overall_targets) {
+    const ok = o.done >= o.n;
+    const bar = h("div", { class: "bar", role: "img", "aria-label": `${o.done} of ${o.n}` }, h("i", { class: "bar-all" }));
+    requestAnimationFrame(() => (bar.firstChild.style.width = `${Math.min(100, (o.done / o.n) * 100)}%`));
+    box.append(h("div", { class: `cat static${ok ? " done" : ""}` },
+      h("div", { class: "cat-head" },
+        h("span", { class: "cat-name" }, o.en, he(o.he)),
+        h("span", { class: "cat-count" }, h("b", {}, o.done), h("span", {}, ` / ${o.n}`))),
+      bar,
+      h("p", { class: "cat-meta" }, o.note ? h("span", {}, o.note) : null,
+        h("span", { class: ok ? "ok" : null }, ok ? "Target met" : `${plural(o.n - o.done, "more case", "more cases")} needed`))));
+  }
+  if (!syl.per_year) return;
+  if (!pr.years) {
+    box.append(h("p", { class: "muted year-hint" }, "Add your residency start date in More to see the targets for each residency year."));
+    return;
+  }
+  const roman = ["I", "II", "III", "IV", "V", "VI"];
+  const rows = pr.years.map((y) => h("tr", { class: y.done >= y.n ? "ok" : null },
+    h("th", { scope: "row" }, roman[y.year - 1]),
+    h("td", {}, `${y.done} / ${y.n}`),
+    h("td", {}, y.instructor_n ? `${y.instructor} / ${y.instructor_n}` : y.instructor ? String(y.instructor) : "-")));
+  box.append(h("div", { class: "years" },
+    h("h3", {}, "By residency year"),
+    h("p", { class: "muted" }, "Cases as primary surgeon, instructor or first assistant; and as resident-instructor."),
+    h("table", {},
+      h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "Year"), h("th", { scope: "col" }, "Primary + 1st asst"),
+        h("th", { scope: "col" }, "Instructor"))),
+      h("tbody", {}, ...rows))));
 }
 
 /* ---------------------------------------------------------------- files */
@@ -952,7 +1074,7 @@ function exportIma() {
   const from = $("#exp-from").value || undefined;
   const to = $("#exp-to").value || undefined;
   const rows = L.rowsForExport({ from, to });
-  const blob = imaWorkbook(rows, L.progress({ from, to }), L.getKv("resident_name", ""), from, to);
+  const blob = imaWorkbook(L.syllabus(), rows, L.progress({ from, to }), L.getKv("resident_name", ""), from, to);
   saveFile(blob, `case-log-IMA-${todayISO()}.xlsx`);
 }
 
@@ -1099,6 +1221,45 @@ async function pairFromLink() {
   if (window.confirm("Pair this device with your other device and sync your cases?")) await join(`#pair=${p.code}&relay=${encodeURIComponent(p.relay)}`);
 }
 
+/* ------------------------------------------------------------------- setup */
+
+function renderSetup() {
+  const current = state.meta.syllabus_id;
+  $("#syllabus-options").replaceChildren(...SYLLABUS_ORDER.map((id) => {
+    const syl = SYLLABI[id];
+    return h("button", {
+      type: "button",
+      class: `syllabus-option${id === current ? " current" : ""}`,
+      "aria-pressed": String(id === current),
+      onclick: () => chooseSyllabus(id),
+    },
+    h("span", { class: "opt-name" }, syl.pick_en, he(syl.short_he)),
+    h("span", { class: "opt-note" }, syl.pick_note));
+  }));
+  $(".setup-pair").hidden = Sync.isPaired();
+}
+
+async function chooseSyllabus(id) {
+  const prev = state.meta.syllabus_id;
+  if (prev && prev !== id) {
+    const n = L.listCases({ limit: 1 }).total;
+    if (n && !window.confirm(`Switch to ${SYLLABI[id].short_en}? Your ${plural(n, "case stays", "cases stay")} in the ` +
+      `log, but cases from ${SYLLABI[prev].short_en} won't count toward the new syllabus. ` +
+      (Sync.isPaired() ? "Your paired devices switch too." : ""))) return;
+  }
+  try {
+    await L.chooseSyllabus(id);
+  } catch (ex) {
+    toast(ex.message);
+    return;
+  }
+  await loadMeta();
+  loadProgress();
+  state.cases.stale = true;
+  toast(`Syllabus: ${SYLLABI[id].short_en}.`);
+  go("log");
+}
+
 /* ------------------------------------------------------------------- guide */
 
 const GUIDE_LANG_KEY = "caselog.guideLang";
@@ -1129,7 +1290,10 @@ function firstView() {
 
 function bind() {
   $("#log-form").addEventListener("submit", saveCase);
-  $$("#role-seg button").forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
+  $("#role-seg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-role]");
+    if (b) setRole(b.dataset.role);
+  });
   $$("#date-seg button").forEach((b) => b.addEventListener("click", () => setDate(b.dataset.date)));
   $("#log-date").addEventListener("change", (e) => {
     if (e.target.value) setDate(e.target.value);
@@ -1204,7 +1368,24 @@ function bind() {
   $("#edit-form").addEventListener("submit", saveEdit);
   $("#e-cancel").addEventListener("click", () => $("#edit-dialog").close());
   $("#e-delete").addEventListener("click", deleteCase);
-  $$("#e-role button").forEach((b) => b.addEventListener("click", () => setEditRole(b.dataset.role)));
+  $("#e-role").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-role]");
+    if (b) setEditRole(b.dataset.role);
+  });
+  $("#change-syllabus").addEventListener("click", () => go("setup"));
+  $("#setup-pair").addEventListener("click", () => {
+    go("more");
+    openJoin();
+  });
+  $("#set-start-save").addEventListener("click", async () => {
+    try {
+      await api("/api/settings", { method: "PUT", body: { residency_start: $("#set-start").value } });
+      toast($("#set-start").value ? "Residency start date saved." : "Residency start date cleared.");
+      afterChange();
+    } catch (ex) {
+      toast(ex.message);
+    }
+  });
   $("#e-procedure").addEventListener("change", (e) => {
     const p = state.procedures.find((x) => x.name.toLowerCase() === e.target.value.trim().toLowerCase());
     if (p) {
@@ -1251,7 +1432,6 @@ async function init() {
   const prefs = load(PREFS_KEY, {});
   state.sort = prefs.sort === "todo" ? "todo" : "syllabus";
   bind();
-  $$("#role-seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === state.role)));
   $$("#sort-seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sort === state.sort)));
   if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
   try {

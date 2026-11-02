@@ -720,3 +720,33 @@ dialog::backdrop { background: rgba(13, 25, 29, 0.55); }
 .guide .note { color: var(--steel); }
 .guide .btn.big { margin: 6px 0 4px; }
 .guide bdi { unicode-bidi: isolate; white-space: nowrap; }
+
+/* ----------------------------------------------------------------- setup */
+
+.syllabus-options { display: grid; gap: 12px; margin-bottom: 20px; }
+.syllabus-option {
+  display: grid;
+  gap: 4px;
+  text-align: start;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.syllabus-option .opt-name { font-weight: 700; font-size: 18px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.syllabus-option .opt-name .he { font-weight: 400; font-size: 15px; color: var(--steel); }
+.syllabus-option .opt-note { color: var(--steel); }
+.syllabus-option.current { border-color: var(--drape); box-shadow: inset 0 0 0 1px var(--drape); }
+.setup-pair .btn.inline { display: inline; min-height: 0; padding: 0; text-decoration: underline; }
+
+/* Category III: logged, not required */
+.cat.optional .cat-count b { font-weight: 600; }
+.cat.static { cursor: default; }
+#overall-targets { margin-top: 10px; }
+.years h3 { font-size: 17px; margin: 18px 0 4px; }
+.years table { width: 100%; border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.years th, .years td { text-align: start; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+.years tr.ok td { color: var(--ok, var(--drape)); font-weight: 600; }
+.year-hint { margin-top: 8px; }
+.sub-he { display: block; margin-top: 4px; }

@@ -50,8 +50,6 @@
             <div class="role-line">
               <span>You were</span>
               <div class="seg" id="role-seg">
-                <button type="button" data-role="primary" aria-pressed="true">Primary surgeon</button>
-                <button type="button" data-role="assistant" aria-pressed="false">Assistant</button>
               </div>
             </div>
             <div id="quick-picks" class="chips" aria-label="Frequent procedures"></div>
@@ -127,12 +125,13 @@
             <button type="button" data-sort="todo" aria-pressed="false">Most left to do</button>
           </div>
         </div>
-        <p class="legend">
+        <p class="legend" id="legend">
           <span><i class="k-primary"></i>Primary</span>
           <span><i class="k-assist"></i>Assistant</span>
           <span><i class="k-target"></i>Primary target</span>
         </p>
         <div id="board"></div>
+        <div id="overall-targets"></div>
       </section>
 
       <!-- All cases -->
@@ -155,6 +154,18 @@
       </section>
 
       <!-- Exports, settings -->
+      <section id="view-setup" class="view setup" aria-labelledby="setup-title" hidden>
+        <header class="view-head">
+          <h1 id="setup-title">Which syllabus are you on?</h1>
+          <p class="sub">Case Log counts your cases against the IMA syllabus you choose. You can change it later in
+            More.<span class="sub-he" lang="he" dir="rtl">באיזה סילבוס אתם?</span></p>
+        </header>
+        <div class="syllabus-options" id="syllabus-options"></div>
+        <p class="muted setup-pair">Already using Case Log on another device? Don't choose here:
+          <button type="button" class="btn quiet inline" id="setup-pair">pair this device</button> and it takes the
+          syllabus from your other device.</p>
+      </section>
+
       <section id="view-guide" class="view guide" aria-labelledby="guide-title-en" hidden>
         <div class="seg guide-lang" role="group" aria-label="Language / שפה">
           <button type="button" data-lang="en" aria-pressed="true">English</button>
@@ -164,8 +175,8 @@
         <article id="guide-en" lang="en">
           <header class="view-head">
             <h1 id="guide-title-en">Welcome to Case Log</h1>
-            <p class="sub">Track your operations against the IMA urology syllabus and get the Excel lists for the
-              specialist title.</p>
+            <p class="sub">Track your operations against your IMA residency syllabus (urology, or general surgery
+              2022 or 2008) and get the Excel lists for the specialist title.</p>
           </header>
           <p>It runs in your browser and works offline. Your cases stay on your own devices: nothing is sent anywhere
             unless you pair a second device, and then only encrypted.</p>
@@ -196,8 +207,12 @@
           <p>On the <b>Log</b> tab, tap the procedure (the ones you use most move to the top), add the record number
             or initials and the age, and tap <b>Save</b>. Primary surgeon is the default role.</p>
           <ul>
-            <li>Mark everything done in the operation. It counts under the most significant procedure whose syllabus
-              slots aren't full yet, and obvious companions (cystoscopy with TURBT or TURP) are added for you.</li>
+            <li>The first time you open it, choose your syllabus. On a second device, pair it instead (step 2) and it
+              takes the syllabus from your first device.</li>
+            <li>Mark everything done in the operation. In urology and general surgery 2008 it counts under the most
+              significant procedure whose syllabus slots aren't full yet (urology adds obvious companions, like
+              cystoscopy with TURBT or TURP, for you). In general surgery 2022, up to 3 procedures in one operation
+              each count, as in the IMA reporting system.</li>
             <li>No signal in the OR? Save anyway. It syncs when you're back online.</li>
           </ul>
           <p><b>Progress</b> shows how far you are in each category. <b>Cases</b> lets you search, edit or delete.</p>
@@ -221,8 +236,8 @@
         <article id="guide-he" lang="he" dir="rtl" class="he" hidden>
           <header class="view-head">
             <h1 id="guide-title-he">ברוכים הבאים ל-<bdi>Case Log</bdi></h1>
-            <p class="sub">מעקב אחר הניתוחים שלך מול סילבוס ההתמחות באורולוגיה של הר"י, והפקת הרשימות לתואר מומחה
-              בקובץ אקסל.</p>
+            <p class="sub">מעקב אחר הניתוחים שלך מול סילבוס ההתמחות של הר"י (אורולוגיה, או כירורגיה כללית 2022 או
+              2008), והפקת הרשימות לתואר מומחה בקובץ אקסל.</p>
           </header>
           <p>האפליקציה פועלת בדפדפן, גם בלי חיבור לאינטרנט. המקרים נשמרים רק במכשירים שלך: שום דבר לא נשלח לשום
             מקום, אלא אם מצמדים מכשיר נוסף, ואז רק מוצפן.</p>
@@ -254,9 +269,12 @@
           <p>בלשונית <b><bdi>Log</bdi></b> הקישו על הפעולה (אלה שאתם משתמשים בהן הכי הרבה עולות למעלה), הוסיפו מספר
             תיק או ראשי תיבות וגיל, והקישו <b><bdi>Save</bdi></b>. ברירת המחדל היא מנתח ראשי.</p>
           <ul>
-            <li>סמנו את כל מה שבוצע בניתוח. הניתוח ייספר תחת הפעולה המשמעותית ביותר שהמכסה שלה בסילבוס עוד לא
-              מולאה, ופעולות נלוות מתבקשות (ציסטוסקופיה עם <bdi>TURBT</bdi> או <bdi>TURP</bdi>) מסומנות
-              אוטומטית.</li>
+            <li>בפתיחה הראשונה בחרו את הסילבוס שלכם. במכשיר שני, צמדו אותו במקום זה (שלב 2) והוא יקבל את הסילבוס
+              מהמכשיר הראשון.</li>
+            <li>סמנו את כל מה שבוצע בניתוח. באורולוגיה ובכירורגיה כללית 2008 הניתוח ייספר תחת הפעולה המשמעותית ביותר
+              שהמכסה שלה בסילבוס עוד לא מולאה (באורולוגיה פעולות נלוות מתבקשות, כמו ציסטוסקופיה עם
+              <bdi>TURBT</bdi> או <bdi>TURP</bdi>, מסומנות אוטומטית). בכירורגיה כללית 2022, עד 3 פעולות באותו ניתוח
+              נספרות כל אחת, כמו בדיווח בדפנ"ה.</li>
             <li>אין קליטה בחדר הניתוח? שמרו בכל זאת. הסנכרון יתבצע כשתחזרו לרשת.</li>
           </ul>
           <p>הלשונית <b><bdi>Progress</bdi></b> מראה כמה השלמתם בכל קטגוריה. בלשונית <b><bdi>Cases</bdi></b> אפשר
@@ -291,6 +309,19 @@
           <p>Installing on your phone and computer, pairing them, logging cases and getting your lists. In English
             and Hebrew.</p>
           <button type="button" class="btn" id="open-guide">Open the guide · <span lang="he">מדריך התקנה ושימוש</span></button>
+        </div>
+
+        <div class="panel" id="syllabus-panel">
+          <h2>Syllabus</h2>
+          <p id="syl-current"></p>
+          <div class="stack">
+            <div id="start-row" class="stack" hidden>
+              <label class="field"><span>Residency start date (for the yearly targets)</span>
+                <input type="date" id="set-start"></label>
+              <button type="button" class="btn" id="set-start-save">Save start date</button>
+            </div>
+            <button type="button" class="btn" id="change-syllabus">Change syllabus</button>
+          </div>
         </div>
 
         <div class="panel" id="sync-panel">
@@ -393,8 +424,6 @@
         <textarea id="e-also" rows="2" maxlength="1200"></textarea></label>
       <div class="field"><span>Your role</span>
         <div class="seg" id="e-role">
-          <button type="button" data-role="primary" aria-pressed="true">Primary surgeon</button>
-          <button type="button" data-role="assistant" aria-pressed="false">Assistant</button>
         </div>
       </div>
       <label class="field"><span>Approach</span><select id="e-approach">

@@ -1,8 +1,8 @@
 /* Case Log service worker: the app works fully offline. Only the app's own files are cached;
    cases live in IndexedDB, and sync requests to the relay are never cached. */
-const CACHE = "caselog-web-v2";
+const CACHE = "caselog-web-v3";
 const SHELL = [
-  "./", "index.html", "style.css", "app.js", "local.js", "sync.js", "exports.js", "xlsx.js", "syllabus.js",
+  "./", "index.html", "style.css", "app.js", "local.js", "sync.js", "exports.js", "xlsx.js", "syllabus.js", "syllabi.js", "gs2022.js", "gs2008.js",
   "config.js", "vendor/jsQR.js", "vendor/qrcode.mjs", "fonts/ahn-400.woff2", "fonts/ahn-700.woff2",
   "icons/icon.svg", "manifest.webmanifest",
 ];

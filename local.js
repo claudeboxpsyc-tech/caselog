@@ -2,18 +2,28 @@
 // the NAS version's server: validation, progress, usage ranking, CSV import/export.
 // Every case is a record keyed by uid; deletions leave a tombstone so they can sync.
 
-import { SYLLABUS as S } from "./syllabus.js";
+import { SYLLABI, DEFAULT_ID, countCases, extras, overallShare } from "./syllabi.js";
 
 const DB_NAME = "caselog";
-const CHILD = S.child_age_limit;
+const APPROACHES = ["", "open", "lap", "robotic", "endo", "perc"];
+const SETTINGS = "settings"; // a synced record: which syllabus, residency start date
 const HALF_LIFE_DAYS = 30;
 const QUICK_PICK_COUNT = 8;
 export const CSV_COLUMNS = ["id", "date", "procedure", "category", "role", "approach", "record_no", "initials",
   "age", "attending", "site", "notes", "also", "created_at", "updated_at"];
 
-const CAT = Object.fromEntries(S.categories.map((c) => [c.key, c]));
-const PRESET = new Map(S.presets.map((p) => [p.name.toLowerCase(), p]));
-const COMPANIONS = new Map(Object.entries(S.companions).map(([k, v]) => [k.toLowerCase(), v.map((x) => x.toLowerCase())]));
+// The syllabus in use on this device (the same on every paired device).
+let S;
+let CAT;
+let PRESET;
+let COMPANIONS;
+function apply(id) {
+  S = SYLLABI[id] || SYLLABI[DEFAULT_ID];
+  CAT = Object.fromEntries(S.categories.map((c) => [c.key, c]));
+  PRESET = new Map(S.presets.map((p) => [p.name.toLowerCase(), p]));
+  COMPANIONS = new Map(Object.entries(S.companions).map(([k, v]) => [k.toLowerCase(), v.map((x) => x.toLowerCase())]));
+}
+apply(DEFAULT_ID);
 
 let db = null;
 const cases = new Map(); // uid -> record (tombstones included)
@@ -49,6 +59,12 @@ export async function open() {
   for (const c of await reqP(t.objectStore("cases").getAll())) cases.set(c.uid, c);
   for (const e of await reqP(t.objectStore("kv").getAll())) kv.set(e.k, e.v);
   if (!kv.get("device")) await setKv("device", randomId());
+  // Devices that used Case Log before there was a choice of syllabus were on urology. Record
+  // that, but weakly, so a syllabus chosen on purpose on another device wins.
+  if (!syllabusId() && (live().length || kv.get("sync"))) {
+    await putRecords([{ uid: SETTINGS, kind: SETTINGS, syllabus: DEFAULT_ID, updated_at: 1, device: deviceId() }]);
+  }
+  apply(syllabusId() || DEFAULT_ID);
   try {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
   } catch (_) { /* not supported */ }
@@ -96,6 +112,7 @@ export async function putRecords(records, { local = true } = {}) {
     }
   });
   for (const r of records) cases.set(r.uid, r);
+  if (records.some((r) => r.uid === SETTINGS)) apply(syllabusId() || DEFAULT_ID); // e.g. chosen on a paired device
   for (const fn of listeners) fn({ local });
 }
 
@@ -106,6 +123,34 @@ export const getRecord = (uid) => cases.get(uid);
 // Is `a` newer than `b`? Last writer wins; the device id breaks exact ties.
 export const newer = (a, b) => !b || a.updated_at > b.updated_at ||
   (a.updated_at === b.updated_at && String(a.device) > String(b.device));
+
+/* -------------------------------------------------------------- settings */
+
+const settingsRecord = () => cases.get(SETTINGS) || null;
+export function syllabusId() {
+  const r = settingsRecord();
+  return r && SYLLABI[r.syllabus] ? r.syllabus : null;
+}
+export const syllabus = () => S;
+
+async function saveSettingsRecord(patch, { weak = false } = {}) {
+  const prev = settingsRecord();
+  const rec = { syllabus: syllabusId() || DEFAULT_ID, residency_start: "", ...(prev || {}), ...patch,
+    uid: SETTINGS, kind: SETTINGS, updated_at: weak ? 0 : stamp(prev), device: deviceId() };
+  await putRecords([rec]);
+  apply(rec.syllabus);
+}
+
+export async function chooseSyllabus(id) {
+  if (!SYLLABI[id]) throw new Invalid("Unknown syllabus.");
+  await saveSettingsRecord({ syllabus: id });
+}
+
+// A device joining a pairing takes the other device's settings: make ours lose any tie.
+export async function yieldSettings() {
+  const prev = settingsRecord();
+  if (prev) await saveSettingsRecord({}, { weak: true });
+}
 
 /* ------------------------------------------------------------ validation */
 
@@ -137,14 +182,26 @@ function cleanAge(v) {
   return Math.round(n * 10) / 10;
 }
 
+// Role names as typed in a CSV, mapped to this syllabus's roles.
 const ROLE_ALIASES = {
-  primary: "primary", p: "primary", main: "primary", surgeon: "primary", "מנתח ראשי": "primary", "ראשי": "primary",
-  "מנתח ראשון": "primary", assistant: "assistant", assist: "assistant", a: "assistant", "עוזר": "assistant",
-  "עוזר ראשון": "assistant",
+  primary: "primary", p: "primary", main: "primary", surgeon: "primary", "primary surgeon": "primary",
+  "first surgeon": "primary", "מנתח ראשי": "primary", "ראשי": "primary", "מנתח ראשון": "primary",
+  instructor: "instructor", "resident-instructor": "instructor", "מתמחה-מדריך": "instructor", "מתמחה מדריך": "instructor",
+  "עוזר ראשון-מדריך": "instructor", "מנתח אחראי": "instructor",
+  first: "first", "1st assistant": "first", "first assistant": "first", "עוזר ראשון": "first",
+  second: "second", "2nd assistant": "second", "second assistant": "second", "עוזר שני": "second",
+  assistant: "assistant", assist: "assistant", a: "assistant", "עוזר": "assistant",
 };
 function cleanRole(v) {
-  const r = ROLE_ALIASES[text(v, 30).toLowerCase()];
-  if (!r) throw new Invalid("Role must be primary or assistant.");
+  const keys = S.roles.map((r) => r.key);
+  let r = ROLE_ALIASES[text(v, 30).toLowerCase()] || text(v, 30);
+  if (!keys.includes(r)) {
+    // Urology has one assistant role; general surgery splits it.
+    if (r === "assistant" && keys.includes("first")) r = "first";
+    else if (["instructor", "first", "second"].includes(r) && keys.includes("assistant")) r = "assistant";
+    else if (r === "instructor" && !keys.includes("instructor")) r = "primary";
+  }
+  if (!keys.includes(r)) throw new Invalid(`Role must be one of: ${keys.join(", ")}.`);
   return r;
 }
 function cleanCategory(v) {
@@ -154,7 +211,7 @@ function cleanCategory(v) {
 }
 function cleanApproach(v) {
   const a = text(v, 20);
-  if (!(a in S.approaches)) throw new Invalid(`Unknown approach '${a}'.`);
+  if (!APPROACHES.includes(a)) throw new Invalid(`Unknown approach '${a}'.`);
   return a;
 }
 // Other procedures done in the same operation (not counted): names, or {procedure, category}.
@@ -190,7 +247,7 @@ async function learn(items) {
 }
 
 const stamp = (prev) => Math.max(Date.now(), prev ? prev.updated_at + 1 : 0);
-const live = () => [...cases.values()].filter((c) => !c.deleted);
+const live = () => [...cases.values()].filter((c) => !c.deleted && !c.kind);
 
 /* ------------------------------------------------------------- the "API" */
 
@@ -240,43 +297,26 @@ export function listCases({ q = "", incomplete = false, category = "", limit = 1
     rows = rows.filter((c) => [c.procedure, c.record_no, c.initials, c.attending, c.notes, c.site, ...(c.also || [])]
       .some((x) => String(x || "").toLowerCase().includes(q)));
   }
-  if (incomplete) rows = rows.filter((c) => (!c.record_no && !c.initials) || c.age === null || c.age === undefined);
+  if (incomplete) rows = rows.filter(missingPatient);
   if (category) rows = rows.filter((c) => c.category === category);
   rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : String(b.created_at).localeCompare(String(a.created_at))));
   return { total: rows.length, cases: rows.slice(offset, offset + limit).map(view) };
 }
 
-function categoryCounts(rows) {
-  const counts = Object.fromEntries(S.categories.map((c) => [c.key, { total: 0, primary: 0, children: 0, minimally_invasive: 0 }]));
-  for (const r of rows) {
-    const c = counts[r.category];
-    if (!c) continue;
-    c.total += 1;
-    if (r.role === "primary") c.primary += 1;
-    if (r.age !== null && r.age !== undefined && r.age < CHILD) c.children += 1;
-    if (r.approach === "lap" || r.approach === "robotic") c.minimally_invasive += 1;
-  }
-  return counts;
-}
+const missingPatient = (c) => !(CAT[c.category] || {}).no_patient &&
+  ((!c.record_no && !c.initials) || c.age === null || c.age === undefined);
 
 export function progress({ from, to } = {}) {
   const rows = live().filter((c) => (!from || c.date >= from) && (!to || c.date <= to));
-  const counts = categoryCounts(rows);
-  let got = 0;
-  let need = 0;
-  const categories = S.categories.map((cat) => {
-    const c = counts[cat.key];
-    const sub = (cat.sub || []).map((s) => ({ ...s, done: c[s.kind] }));
-    got += Math.min(c.total, cat.total) + Math.min(c.primary, cat.primary);
-    need += cat.total + cat.primary;
-    for (const s of sub) {
-      got += Math.min(s.done, s.n);
-      need += s.n;
-    }
-    return { key: cat.key, total_done: c.total, primary_done: c.primary, sub };
-  });
-  const incomplete = rows.filter((c) => (!c.record_no && !c.initials) || c.age === null || c.age === undefined).length;
-  return { categories, overall: need ? got / need : 0, total_cases: rows.length, incomplete };
+  const counts = countCases(S, rows);
+  const start = (settingsRecord() || {}).residency_start || "";
+  const ex = extras(S, rows, start);
+  const categories = S.categories.map((cat) => ({ key: cat.key, ...counts[cat.key] }));
+  return {
+    categories, overall_targets: ex.overall, years: ex.years, residency_start: start,
+    overall: overallShare(S, counts, ex.overall), total_cases: rows.length,
+    incomplete: rows.filter(missingPatient).length,
+  };
 }
 
 function knownProcedure(key) {
@@ -322,6 +362,7 @@ function quickPicks(used) {
     if (picks.length >= QUICK_PICK_COUNT) break;
     if (!picks.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
       const p = PRESET.get(name.toLowerCase());
+      if (!p) continue;
       picks.push({ name: p.name, category: p.category, approach: p.approach });
     }
   }
@@ -346,17 +387,22 @@ export function meta() {
   }
   return {
     syllabus: S,
+    syllabus_id: syllabusId(),
     quick_picks: quickPicks(used),
     usage: Object.fromEntries(used.map((u) => [u.name, u.score])),
     custom_procedures: [...custom.values()].sort((a, b) => a.name.localeCompare(b.name)),
     attendings: recentDistinct("attending", 40),
     sites: recentDistinct("site", 10),
-    settings: { resident_name: getKv("resident_name", "") },
+    settings: { resident_name: getKv("resident_name", ""), residency_start: (settingsRecord() || {}).residency_start || "" },
   };
 }
 
 export async function saveSettings(body) {
   if ("resident_name" in body) await setKv("resident_name", text(body.resident_name, 80));
+  if ("residency_start" in body) {
+    const v = text(body.residency_start, 20);
+    await saveSettingsRecord({ residency_start: v ? cleanDate(v) : "" });
+  }
   return { ok: true };
 }
 

@@ -106,6 +106,7 @@ export async function createPairing() {
 export async function joinPairing(input) {
   const p = parsePairing(input);
   if (!p) throw new Error("That isn't a Case Log pairing code. Scan the QR code again, or copy the whole code.");
+  await L.yieldSettings(); // this device takes the syllabus of the device it pairs with
   return adopt(p);
 }
 
@@ -154,7 +155,8 @@ async function decrypt(batch) {
 }
 
 const validRecord = (r) => r && typeof r.uid === "string" && r.uid.length <= 64 && Number.isFinite(r.updated_at) &&
-  (r.deleted === true || (typeof r.procedure === "string" && typeof r.date === "string" && typeof r.category === "string"));
+  (r.deleted === true || (r.kind === "settings" && typeof r.syllabus === "string") ||
+    (!r.kind && typeof r.procedure === "string" && typeof r.date === "string" && typeof r.category === "string"));
 
 async function pull() {
   const me = L.deviceId();
@@ -182,7 +184,7 @@ async function pull() {
       }
     }
     if (merged.length) await L.putRecords(merged, { local: false });
-    received += merged.filter((x) => !x.deleted).length;
+    received += merged.filter((x) => !x.deleted && !x.kind).length;
     const last = r.batches.length ? r.batches[r.batches.length - 1].seq : s.cursor || 0;
     await L.setKv("sync", { ...L.getKv("sync"), cursor: last });
     if (!r.more) return received;
