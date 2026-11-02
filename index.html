@@ -155,10 +155,143 @@
       </section>
 
       <!-- Exports, settings -->
+      <section id="view-guide" class="view guide" aria-labelledby="guide-title-en" hidden>
+        <div class="seg guide-lang" role="group" aria-label="Language / שפה">
+          <button type="button" data-lang="en" aria-pressed="true">English</button>
+          <button type="button" data-lang="he" aria-pressed="false" lang="he">עברית</button>
+        </div>
+
+        <article id="guide-en" lang="en">
+          <header class="view-head">
+            <h1 id="guide-title-en">Welcome to Case Log</h1>
+            <p class="sub">Track your operations against the IMA urology syllabus and get the Excel lists for the
+              specialist title.</p>
+          </header>
+          <p>It runs in your browser and works offline. Your cases stay on your own devices: nothing is sent anywhere
+            unless you pair a second device, and then only encrypted.</p>
+          <button type="button" class="btn primary big guide-start">Start using Case Log</button>
+
+          <h2>1. Install it on each device</h2>
+          <ul>
+            <li><b>iPhone:</b> open this page in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>. From then
+              on, <b>always open Case Log from that icon</b>: Safari can clear data of websites that aren't on the
+              home screen, and your cases live in the app.</li>
+            <li><b>Android:</b> in Chrome, tap <b>⋮</b>, then <b>Add to Home screen</b> or <b>Install app</b>.</li>
+            <li><b>Computer:</b> Chrome and Edge show an install button at the right of the address bar. Safari on a
+              Mac: <b>File → Add to Dock</b>. Or just bookmark this page.</li>
+          </ul>
+
+          <h2>2. Pair your phone and computer (once)</h2>
+          <ol>
+            <li>On your phone: <b>More → Set up sync on this device</b>. A QR code appears.</li>
+            <li>On your computer: <b>More → Pair with my other device</b>. Point the camera at the QR code, or on the
+              phone tap <b>Copy code</b>, send it to yourself and paste it in.</li>
+            <li>That's it: a case saved on one device shows up on the other within a minute or so. To add a tablet or
+              a new phone, tap <b>More → Pair another device</b> on a device that's already paired.</li>
+          </ol>
+          <p class="note">The pairing code unlocks your whole log. Use it only on your own devices, and if you message
+            it to yourself, delete the message afterwards.</p>
+
+          <h2>3. Log a case</h2>
+          <p>On the <b>Log</b> tab, tap the procedure (the ones you use most move to the top), add the record number
+            or initials and the age, and tap <b>Save</b>. Primary surgeon is the default role.</p>
+          <ul>
+            <li>Mark everything done in the operation. It counts under the most significant procedure whose syllabus
+              slots aren't full yet, and obvious companions (cystoscopy with TURBT or TURP) are added for you.</li>
+            <li>No signal in the OR? Save anyway. It syncs when you're back online.</li>
+          </ul>
+          <p><b>Progress</b> shows how far you are in each category. <b>Cases</b> lets you search, edit or delete.</p>
+
+          <h2>4. Lists for the specialist title</h2>
+          <p>In <b>More → Your name on the lists</b>, enter your name once. <b>Download Excel lists</b> gives the IMA
+            summary list, the detailed list by type, and every case in one table.</p>
+
+          <h2>Keeping your log safe</h2>
+          <ul>
+            <li>Paired devices are copies of each other, so losing one loses nothing.</li>
+            <li>Now and then, tap <b>More → Download backup (CSV)</b> and keep the file somewhere safe.</li>
+            <li>Clearing this site's data in your browser, or deleting the home-screen app, removes the cases on that
+              device. If it was paired, pair it again and they come back from your other device.</li>
+          </ul>
+
+          <p class="note">You can open this guide any time from <b>More</b>.</p>
+          <button type="button" class="btn primary big guide-start">Start using Case Log</button>
+        </article>
+
+        <article id="guide-he" lang="he" dir="rtl" class="he" hidden>
+          <header class="view-head">
+            <h1 id="guide-title-he">ברוכים הבאים ל-<bdi>Case Log</bdi></h1>
+            <p class="sub">מעקב אחר הניתוחים שלך מול סילבוס ההתמחות באורולוגיה של הר"י, והפקת הרשימות לתואר מומחה
+              בקובץ אקסל.</p>
+          </header>
+          <p>האפליקציה פועלת בדפדפן, גם בלי חיבור לאינטרנט. המקרים נשמרים רק במכשירים שלך: שום דבר לא נשלח לשום
+            מקום, אלא אם מצמדים מכשיר נוסף, ואז רק מוצפן.</p>
+          <button type="button" class="btn primary big guide-start">להתחיל להשתמש</button>
+
+          <h2>1. התקנה בכל מכשיר</h2>
+          <ul>
+            <li><b>אייפון:</b> פתחו את הדף הזה בספארי, הקישו על כפתור השיתוף ואז על <b>הוספה למסך הבית</b>
+              (<bdi>Add to Home Screen</bdi>). מעכשיו <b>פתחו את <bdi>Case Log</bdi> תמיד מהסמל במסך הבית</b>: ספארי
+              עלול למחוק נתונים של אתרים שלא נוספו למסך הבית, והמקרים שלכם שמורים באפליקציה.</li>
+            <li><b>אנדרואיד:</b> בכרום, הקישו על <b>⋮</b> ואז על <b>הוספה למסך הבית</b> או <b>התקנת אפליקציה</b>.</li>
+            <li><b>מחשב:</b> בכרום ובאדג' מופיע כפתור התקנה בקצה שורת הכתובת. בספארי במק:
+              <b><bdi>File → Add to Dock</bdi></b>. אפשר גם פשוט לשמור את הדף במועדפים.</li>
+          </ul>
+
+          <h2>2. צימוד הטלפון והמחשב (פעם אחת)</h2>
+          <ol>
+            <li>בטלפון: בלשונית <b><bdi>More</bdi></b> הקישו <b><bdi>Set up sync on this device</bdi></b>. יופיע קוד
+              QR.</li>
+            <li>במחשב: בלשונית <b><bdi>More</bdi></b> הקישו <b><bdi>Pair with my other device</bdi></b>. כוונו את
+              המצלמה לקוד ה-QR, או הקישו בטלפון <b><bdi>Copy code</bdi></b>, שלחו את הקוד לעצמכם והדביקו אותו.</li>
+            <li>זהו: מקרה שנשמר במכשיר אחד יופיע בשני תוך דקה בערך. כדי להוסיף טאבלט או טלפון חדש, הקישו
+              <b><bdi>Pair another device</bdi></b> בלשונית <b><bdi>More</bdi></b> במכשיר שכבר מצומד.</li>
+          </ol>
+          <p class="note">קוד הצימוד פותח את כל היומן שלכם. השתמשו בו רק במכשירים שלכם, ואם שלחתם אותו לעצמכם
+            בהודעה, מחקו אותה אחר כך.</p>
+
+          <h2>3. רישום ניתוח</h2>
+          <p>בלשונית <b><bdi>Log</bdi></b> הקישו על הפעולה (אלה שאתם משתמשים בהן הכי הרבה עולות למעלה), הוסיפו מספר
+            תיק או ראשי תיבות וגיל, והקישו <b><bdi>Save</bdi></b>. ברירת המחדל היא מנתח ראשי.</p>
+          <ul>
+            <li>סמנו את כל מה שבוצע בניתוח. הניתוח ייספר תחת הפעולה המשמעותית ביותר שהמכסה שלה בסילבוס עוד לא
+              מולאה, ופעולות נלוות מתבקשות (ציסטוסקופיה עם <bdi>TURBT</bdi> או <bdi>TURP</bdi>) מסומנות
+              אוטומטית.</li>
+            <li>אין קליטה בחדר הניתוח? שמרו בכל זאת. הסנכרון יתבצע כשתחזרו לרשת.</li>
+          </ul>
+          <p>הלשונית <b><bdi>Progress</bdi></b> מראה כמה השלמתם בכל קטגוריה. בלשונית <b><bdi>Cases</bdi></b> אפשר
+            לחפש, לערוך ולמחוק.</p>
+
+          <h2>4. רשימות לתואר מומחה</h2>
+          <p>בלשונית <b><bdi>More</bdi></b>, תחת <b><bdi>Your name on the lists</bdi></b>, הזינו את שמכם פעם אחת.
+            הכפתור <b><bdi>Download Excel lists</bdi></b> מפיק את הרשימה המסכמת של הר"י, את הרשימה המפורטת לפי סוג,
+            וטבלה של כל המקרים.</p>
+
+          <h2>שמירה על היומן</h2>
+          <ul>
+            <li>מכשירים מצומדים הם עותקים זה של זה, כך שאובדן מכשיר אחד לא מוחק דבר.</li>
+            <li>מדי פעם הקישו <b><bdi>Download backup (CSV)</bdi></b> בלשונית <b><bdi>More</bdi></b> ושמרו את הקובץ
+              במקום בטוח.</li>
+            <li>ניקוי נתוני האתר בדפדפן, או מחיקת האפליקציה ממסך הבית, מוחקים את המקרים מאותו מכשיר. אם הוא היה
+              מצומד, צמדו אותו מחדש והמקרים יחזרו מהמכשיר השני.</li>
+          </ul>
+
+          <p class="note">אפשר לפתוח את המדריך הזה בכל עת מהלשונית <b><bdi>More</bdi></b>.</p>
+          <button type="button" class="btn primary big guide-start">להתחיל להשתמש</button>
+        </article>
+      </section>
+
       <section id="view-more" class="view" aria-labelledby="more-title" hidden>
         <header class="view-head">
           <h1 id="more-title">More</h1>
         </header>
+
+        <div class="panel">
+          <h2>Install and use guide</h2>
+          <p>Installing on your phone and computer, pairing them, logging cases and getting your lists. In English
+            and Hebrew.</p>
+          <button type="button" class="btn" id="open-guide">Open the guide · <span lang="he">מדריך התקנה ושימוש</span></button>
+        </div>
 
         <div class="panel" id="sync-panel">
           <h2>Sync with your other device</h2>
@@ -219,12 +352,6 @@
           </div>
         </div>
 
-        <div class="panel">
-          <h2>Add to your home screen</h2>
-          <p>iPhone: open this page in Safari, tap Share, then Add to Home Screen, and always open Case Log from that
-            icon: Safari can clear data of sites that aren't on the home screen. Android: open the browser menu and tap
-            Add to Home screen or Install app. Computer: Chrome and Edge offer an install button in the address bar.</p>
-        </div>
 
         <div class="panel">
           <h2>About</h2>

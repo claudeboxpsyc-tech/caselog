@@ -793,7 +793,7 @@ async function saveName() {
   }
 }
 
-const VIEWS = ["log", "progress", "cases", "more"];
+const VIEWS = ["log", "progress", "cases", "more", "guide"];
 
 function go(view) {
   if (location.hash !== `#${view}`) location.hash = view;
@@ -1099,6 +1099,32 @@ async function pairFromLink() {
   if (window.confirm("Pair this device with your other device and sync your cases?")) await join(`#pair=${p.code}&relay=${encodeURIComponent(p.relay)}`);
 }
 
+/* ------------------------------------------------------------------- guide */
+
+const GUIDE_LANG_KEY = "caselog.guideLang";
+
+function setGuideLang(lang) {
+  $("#guide-en").hidden = lang !== "en";
+  $("#guide-he").hidden = lang !== "he";
+  $("#view-guide").setAttribute("aria-labelledby", `guide-title-${lang}`);
+  $$(".guide-lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+  store(GUIDE_LANG_KEY, lang);
+}
+
+function initialGuideLang() {
+  const saved = load(GUIDE_LANG_KEY, "");
+  if (saved === "en" || saved === "he") return saved;
+  return (navigator.languages || [navigator.language]).some((l) => /^(he|iw)\b/i.test(l || "")) ? "he" : "en";
+}
+
+// Opening the bare link in a browser shows the guide to someone new. The installed app, and anyone
+// already using Case Log on this device, goes straight to the log.
+function firstView() {
+  const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const inUse = Sync.isPaired() || L.allRecords().some((r) => !r.deleted);
+  return installed || inUse ? "log" : "guide";
+}
+
 /* -------------------------------------------------------------------- boot */
 
 function bind() {
@@ -1138,6 +1164,9 @@ function bind() {
   });
 
   $$(".tabs button").forEach((b) => b.addEventListener("click", () => go(b.dataset.view)));
+  $$(".guide-lang button").forEach((b) => b.addEventListener("click", () => setGuideLang(b.dataset.lang)));
+  $$(".guide-start").forEach((b) => b.addEventListener("click", () => go("log")));
+  $("#open-guide").addEventListener("click", () => go("guide"));
   window.addEventListener("hashchange", () => (/[#&]pair=/.test(location.hash) ? pairFromLink() : route()));
 
   $$("#sort-seg button").forEach((b) => b.addEventListener("click", () => {
@@ -1235,6 +1264,8 @@ async function init() {
   $("#shell").hidden = false;
   await loadMeta();
   loadProgress();
+  setGuideLang(initialGuideLang());
+  if (!location.hash || location.hash === "#") history.replaceState(null, "", `${location.pathname}#${firstView()}`);
   route();
   Sync.onStatus(() => {
     if (state.view === "more") renderSync();
