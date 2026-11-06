@@ -249,7 +249,7 @@ const byteOf = (ch) => {
   return null;
 };
 function repairHebrewPairs(s) {
-  if (!/[×Ö][^\x00-\x7f]/.test(s)) return s;
+  if (!/[×Ö][^\x00-\x7f]/.test(s) && !LOST.test(s)) return s;
   const chars = [...s];
   let out = "";
   let letters = 0;
@@ -267,6 +267,14 @@ function repairHebrewPairs(s) {
         i += 1;
         continue;
       }
+      // נ ends in byte A0, a no-break space, which often became a plain space. נ never ends a
+      // word, so a Hebrew letter (or another garbled letter) always follows it.
+      if (lead === 0x5c0 && next === " " && /[×\u05d0-\u05ea]/.test(chars[i + 2] || "")) {
+        out += "נ";
+        letters += 1;
+        i += 1;
+        continue;
+      }
       if (lead === 0x5c0 && (next === "\ufffd" || next === "?")) {
         const after = chars[i + 2];
         out += after === undefined || /[\s.,;:'"()\-/]/.test(after) ? "ם" : "א";
@@ -280,10 +288,13 @@ function repairHebrewPairs(s) {
   return letters ? out : s;
 }
 
+// Garbled letters whose second byte was lost or turned into a space (see above).
+const LOST = /×[\ufffd?]|× (?=[×\u05d0-\u05ea])/;
+
 export function repairText(v) {
   if (typeof v !== "string") return v;
   const strict = repairStrict(v);
-  return GARBLED.test(strict) || /×[\ufffd?]/.test(strict) ? repairHebrewPairs(strict) : strict;
+  return GARBLED.test(strict) || LOST.test(strict) ? repairHebrewPairs(strict) : strict;
 }
 
 function repairStrict(v) {
@@ -310,7 +321,7 @@ function repairStrict(v) {
   return s;
 }
 
-const NEEDS_REPAIR = (x) => typeof x === "string" && (GARBLED.test(x) || /×[\ufffd?]/.test(x));
+const NEEDS_REPAIR = (x) => typeof x === "string" && (GARBLED.test(x) || LOST.test(x));
 const REPAIR_FIELDS = ["procedure", "record_no", "initials", "attending", "site", "notes"];
 
 // Fix cases already saved with garbled Hebrew (imported before the repair existed).
@@ -393,9 +404,9 @@ export async function deleteCase(uid) {
 
 const view = (r) => ({ ...r, id: r.uid });
 
-export const SORTS = ["new", "old", "procedure", "category", "role", "attending"];
+export const SORTS = ["date", "procedure", "category", "role", "attending"];
 
-export function listCases({ q = "", incomplete = false, category = "", sort = "new", limit = 100, offset = 0 } = {}) {
+export function listCases({ q = "", incomplete = false, category = "", sort = "date", dir = "desc", limit = 100, offset = 0 } = {}) {
   q = q.trim().toLowerCase();
   let rows = live();
   if (q) {
@@ -404,20 +415,24 @@ export function listCases({ q = "", incomplete = false, category = "", sort = "n
   }
   if (incomplete) rows = rows.filter(missingPatient);
   if (category) rows = rows.filter((c) => c.category === category);
-  const newest = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : String(b.created_at).localeCompare(String(a.created_at)));
+  const oldest = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.created_at).localeCompare(String(b.created_at)));
   const text = (x) => String(x || "").toLocaleLowerCase();
   const catIndex = Object.fromEntries(S.categories.map((c, i) => [c.key, i]));
   const roleIndex = Object.fromEntries(S.roles.map((r, i) => [r.key, i]));
+  // Each field ascending; the direction flips it. Within a group, newest first.
   const by = {
-    new: newest,
-    old: (a, b) => -newest(a, b),
-    procedure: (a, b) => text(a.procedure).localeCompare(text(b.procedure)) || newest(a, b),
-    category: (a, b) => (catIndex[a.category] ?? 999) - (catIndex[b.category] ?? 999) || newest(a, b),
-    role: (a, b) => (roleIndex[a.role] ?? 99) - (roleIndex[b.role] ?? 99) || newest(a, b),
-    // Cases without an attending last.
-    attending: (a, b) => (!a.attending - !b.attending) || text(a.attending).localeCompare(text(b.attending), "he") || newest(a, b),
+    date: oldest,
+    procedure: (a, b) => text(a.procedure).localeCompare(text(b.procedure)),
+    category: (a, b) => (catIndex[a.category] ?? 999) - (catIndex[b.category] ?? 999),
+    role: (a, b) => (roleIndex[a.role] ?? 99) - (roleIndex[b.role] ?? 99),
+    attending: (a, b) => text(a.attending).localeCompare(text(b.attending), "he"),
   };
-  rows.sort(by[sort] || newest);
+  const field = by[sort] || oldest;
+  const sign = dir === "asc" ? 1 : -1;
+  rows.sort((a, b) => {
+    if (sort === "attending" && !a.attending !== !b.attending) return a.attending ? -1 : 1; // no attending: last
+    return sign * field(a, b) || -oldest(a, b);
+  });
   return { total: rows.length, cases: rows.slice(offset, offset + limit).map(view) };
 }
 

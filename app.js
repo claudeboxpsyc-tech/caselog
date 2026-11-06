@@ -29,7 +29,7 @@ const state = {
   view: "log",
   progress: null,
   progressStale: true,
-  cases: { q: "", incomplete: false, category: "", sort: "new", items: [], total: 0, stale: true },
+  cases: { q: "", incomplete: false, category: "", sort: "date", dir: "desc", items: [], total: 0, stale: true },
   editing: null,
   editRole: "primary",
   resultIndex: -1,
@@ -47,7 +47,7 @@ async function api(path, { method = "GET", body } = {}) {
   if (url.pathname.endsWith("/api/settings")) return L.saveSettings(body);
   if (url.pathname.endsWith("/api/cases") && method === "GET") {
     return L.listCases({ q: p.get("q") || "", incomplete: p.get("incomplete") === "1", category: p.get("category") || "",
-      sort: p.get("sort") || "new",
+      sort: p.get("sort") || "date", dir: p.get("dir") || "desc",
       limit: +(p.get("limit") || 100), offset: +(p.get("offset") || 0) });
   }
   if (url.pathname.endsWith("/api/cases") && method === "POST") return L.createCase(body);
@@ -678,6 +678,7 @@ async function loadCases(append = false) {
   if (c.incomplete) params.set("incomplete", "1");
   if (c.category) params.set("category", c.category);
   params.set("sort", c.sort);
+  params.set("dir", c.dir);
   try {
     const r = await api(`/api/cases?${params}`);
     c.items = append ? c.items.concat(r.cases) : r.cases;
@@ -738,8 +739,7 @@ function renderCases() {
   // A heading for each group: the day, the procedure, the category, the role or the attending.
   const syl = state.meta.syllabus;
   const group = {
-    new: (x) => formatDay(x.date),
-    old: (x) => formatDay(x.date),
+    date: (x) => formatDay(x.date),
     procedure: (x) => x.procedure,
     category: (x) => {
       const cat = state.catByKey[x.category];
@@ -764,6 +764,26 @@ function renderCases() {
   const cat = state.catByKey[c.category];
   $("#cases-cat-filter").hidden = !cat;
   $("#cases-cat-label").textContent = cat ? `Only ${cat.en}` : "";
+}
+
+const SORT_LABELS = { date: "Date", procedure: "Procedure", category: "Category", role: "Role", attending: "Attending" };
+const SORT_DIRS = {
+  date: { asc: "oldest first", desc: "newest first" },
+  procedure: { asc: "A to Z", desc: "Z to A" },
+  category: { asc: "in syllabus order", desc: "in reverse syllabus order" },
+  role: { asc: "primary first", desc: "assistant first" },
+  attending: { asc: "A to Z", desc: "Z to A" },
+};
+
+function renderSortRow() {
+  const c = state.cases;
+  for (const b of $$("#cases-sort button[data-sort]")) {
+    const on = b.dataset.sort === c.sort;
+    b.setAttribute("aria-pressed", String(on));
+    b.replaceChildren(SORT_LABELS[b.dataset.sort], on ? h("span", { class: "sort-arrow", "aria-hidden": "true" }, c.dir === "asc" ? "↑" : "↓") : "");
+    b.setAttribute("aria-label", `Sort by ${SORT_LABELS[b.dataset.sort].toLowerCase()}` +
+      (on ? `, ${SORT_DIRS[b.dataset.sort][c.dir]}. Tap to reverse.` : ""));
+  }
 }
 
 function showCasesFor(key) {
@@ -1376,11 +1396,18 @@ function bind() {
       loadCases();
     }, 250);
   });
-  state.cases.sort = load("caselog.casesSort", "new");
-  $("#cases-sort").value = state.cases.sort;
-  $("#cases-sort").addEventListener("change", (e) => {
-    state.cases.sort = e.target.value;
-    store("caselog.casesSort", state.cases.sort);
+  const savedSort = load("caselog.casesSort", null);
+  if (savedSort && L.SORTS.includes(savedSort.sort)) Object.assign(state.cases, { sort: savedSort.sort, dir: savedSort.dir });
+  renderSortRow();
+  $("#cases-sort").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-sort]");
+    if (!b) return;
+    const c = state.cases;
+    // Tap the active one to flip it; a new one starts newest first for dates, A to Z otherwise.
+    if (b.dataset.sort === c.sort) c.dir = c.dir === "asc" ? "desc" : "asc";
+    else Object.assign(c, { sort: b.dataset.sort, dir: b.dataset.sort === "date" ? "desc" : "asc" });
+    store("caselog.casesSort", { sort: c.sort, dir: c.dir });
+    renderSortRow();
     loadCases();
   });
   $("#cases-incomplete").addEventListener("change", (e) => {

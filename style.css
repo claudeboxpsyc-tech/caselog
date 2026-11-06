@@ -750,4 +750,33 @@ dialog::backdrop { background: rgba(13, 25, 29, 0.55); }
 .years tr.ok td { color: var(--ok, var(--drape)); font-weight: 600; }
 .year-hint { margin-top: 8px; }
 .sub-he { display: block; margin-top: 4px; }
-.sort-field { max-width: 320px; }
+
+/* Cases: sort by clicking a header; the active one shows its direction. */
+.sort-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--line);
+  margin: 0 -2px;
+}
+.sort-row::-webkit-scrollbar { display: none; }
+.sort-row button {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--steel);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sort-row button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--drape); }
+.sort-arrow { font-size: 15px; color: var(--drape); }
