@@ -224,9 +224,10 @@
           </ul>
           <p><b>Progress</b> shows how far you are in each category. <b>Cases</b> lets you search, edit or delete.</p>
 
-          <h2>4. Lists for the specialist title</h2>
+          <h2>4. Final lists to hand in</h2>
           <p>In <b>More → Your name on the lists</b>, enter your name once. <b>Download Excel lists</b> gives the IMA
-            summary list, the detailed list by type, and every case in one table.</p>
+            summary list, the detailed list by type, and every case in one table: all your cases, or only those
+            between two dates if you choose <b>Between dates</b>.</p>
 
           <h2>Keeping your log safe</h2>
           <ul>
@@ -290,10 +291,10 @@
           <p>הלשונית <b><bdi>Progress</bdi></b> מראה כמה השלמתם בכל קטגוריה. בלשונית <b><bdi>Cases</bdi></b> אפשר
             לחפש, לערוך ולמחוק.</p>
 
-          <h2>4. רשימות לתואר מומחה</h2>
+          <h2>4. רשימות סופיות להגשה</h2>
           <p>בלשונית <b><bdi>More</bdi></b>, תחת <b><bdi>Your name on the lists</bdi></b>, הזינו את שמכם פעם אחת.
             הכפתור <b><bdi>Download Excel lists</bdi></b> מפיק את הרשימה המסכמת של הר"י, את הרשימה המפורטת לפי סוג,
-            וטבלה של כל המקרים.</p>
+            וטבלה של כל המקרים: כל המקרים, או רק מקרים בין שני תאריכים אם בוחרים <b><bdi>Between dates</bdi></b>.</p>
 
           <h2>שמירה על היומן</h2>
           <ul>
@@ -366,11 +367,14 @@
         </div>
 
         <div class="panel">
-          <h2>Lists for the specialist title</h2>
-          <p>An Excel file with the IMA summary list, the detailed list sorted by type, and every case in one table.
-            Leave the dates empty to include everything.</p>
+          <h2>Final lists to hand in</h2>
+          <p>An Excel file with the IMA summary list, the detailed list sorted by type, and every case in one table.</p>
           <div class="stack">
-            <div class="two">
+            <div class="seg" id="exp-range" role="group" aria-label="Which cases">
+              <button type="button" data-range="all" aria-pressed="true">All cases</button>
+              <button type="button" data-range="dates" aria-pressed="false">Between dates</button>
+            </div>
+            <div class="two" id="exp-dates" hidden>
               <label class="field"><span>From</span><input type="date" id="exp-from"></label>
               <label class="field"><span>To</span><input type="date" id="exp-to"></label>
             </div>

@@ -1108,8 +1108,14 @@ async function saveFile(blob, name) {
 }
 
 function exportIma() {
-  const from = $("#exp-from").value || undefined;
-  const to = $("#exp-to").value || undefined;
+  // "All cases" unless "Between dates" is chosen; an empty date there means no limit on that side.
+  const dated = $("#exp-range button[data-range='dates']").getAttribute("aria-pressed") === "true";
+  const from = (dated && $("#exp-from").value) || undefined;
+  const to = (dated && $("#exp-to").value) || undefined;
+  if (dated && from && to && from > to) {
+    toast("The From date is after the To date.");
+    return;
+  }
   const rows = L.rowsForExport({ from, to });
   const blob = imaWorkbook(L.syllabus(), rows, L.progress({ from, to }), L.getKv("resident_name", ""), from, to);
   saveFile(blob, `case-log-IMA-${todayISO()}.xlsx`);
@@ -1409,6 +1415,13 @@ function bind() {
     store("caselog.casesSort", { sort: c.sort, dir: c.dir });
     renderSortRow();
     loadCases();
+  });
+  $("#exp-range").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-range]");
+    if (!b) return;
+    $$("#exp-range button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    $("#exp-dates").hidden = b.dataset.range !== "dates";
+    if (b.dataset.range === "dates") $("#exp-from").focus();
   });
   $("#cases-incomplete").addEventListener("change", (e) => {
     state.cases.incomplete = e.target.checked;

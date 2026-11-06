@@ -42,7 +42,7 @@ initials and age, and tap **Save**. Primary surgeon is the default role.
 
 **Progress** shows how far you are in each category. **Cases** lets you search, edit or delete.
 
-## 4. Get your lists for the specialist title
+## 4. Final lists to hand in
 
 **More → Your name on the lists**: enter your name once. Then **Download Excel lists** gives the
 IMA summary, the detailed list by type, and every case in one table.
