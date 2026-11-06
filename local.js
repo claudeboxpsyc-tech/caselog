@@ -65,6 +65,7 @@ export async function open() {
     await putRecords([{ uid: SETTINGS, kind: SETTINGS, syllabus: DEFAULT_ID, updated_at: 1, device: deviceId() }]);
   }
   apply(syllabusId() || DEFAULT_ID);
+  await repairStored();
   try {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
   } catch (_) { /* not supported */ }
@@ -227,6 +228,59 @@ function cleanAlso(v) {
     if (name && !names.includes(name)) names.push(name);
   }
   return { names, learn };
+}
+
+// Hebrew that went through a program reading UTF-8 as a Western encoding (often Excel opening a
+// CSV and saving it again) turns into "×ž×•..." or worse. That is reversible: turn each
+// character back into its byte and read the bytes as UTF-8 again, as many times as it was garbled.
+const CP1252 = { "€": 0x80, "‚": 0x82, "ƒ": 0x83, "„": 0x84, "…": 0x85, "†": 0x86, "‡": 0x87, "ˆ": 0x88, "‰": 0x89,
+  "Š": 0x8a, "‹": 0x8b, "Œ": 0x8c, "Ž": 0x8e, "‘": 0x91, "’": 0x92, "“": 0x93, "”": 0x94, "•": 0x95, "–": 0x96,
+  "—": 0x97, "˜": 0x98, "™": 0x99, "š": 0x9a, "›": 0x9b, "œ": 0x9c, "ž": 0x9e, "Ÿ": 0x9f };
+const GARBLED = /[ÃÂ×][\u0080-¿€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/;
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+export function repairText(v) {
+  let s = v;
+  for (let round = 0; round < 4 && typeof s === "string" && GARBLED.test(s); round++) {
+    const bytes = [];
+    for (const ch of s) {
+      const code = ch.codePointAt(0);
+      if (code < 0x100) bytes.push(code);
+      else if (CP1252[ch] !== undefined) bytes.push(CP1252[ch]);
+      else return s; // a real character outside the Western range: not this kind of garbling
+    }
+    let next;
+    try {
+      next = utf8.decode(new Uint8Array(bytes));
+    } catch (_) {
+      return s;
+    }
+    // Only accept a repair that produces Hebrew letters, undoes the classic "Ã©" garbling of
+    // accented letters, or uncovers another layer of the same garbling.
+    if (!/[\u05d0-\u05ea]/.test(next) && !/[ÃÂ][\u0080-\u00bf]/.test(s) && !GARBLED.test(next)) return s;
+    s = next;
+  }
+  return s;
+}
+
+const REPAIR_FIELDS = ["procedure", "record_no", "initials", "attending", "site", "notes"];
+
+// Fix cases already saved with garbled Hebrew (imported before the repair existed).
+async function repairStored() {
+  const fixed = [];
+  for (const c of live()) {
+    const patch = {};
+    for (const f of REPAIR_FIELDS) {
+      if (typeof c[f] === "string" && GARBLED.test(c[f])) {
+        const r = repairText(c[f]);
+        if (r !== c[f]) patch[f] = r;
+      }
+    }
+    const also = (c.also || []).map((a) => (typeof a === "string" ? repairText(a) : a));
+    if (also.some((a, i) => a !== c.also[i])) patch.also = also;
+    if (Object.keys(patch).length) fixed.push({ ...c, ...patch, updated_at: stamp(c), device: deviceId() });
+  }
+  if (fixed.length) await putRecords(fixed);
+  return fixed.length;
 }
 
 const CLEAN = {
@@ -464,7 +518,7 @@ export async function importCsv(textIn) {
   const out = [];
   let skipped = 0;
   rows.slice(1).forEach((cells, i) => {
-    const raw = Object.fromEntries(head.map((h, j) => [h, cells[j] ?? ""]));
+    const raw = Object.fromEntries(head.map((h, j) => [h, repairText(cells[j] ?? "")]));
     let rec;
     try {
       rec = {};
