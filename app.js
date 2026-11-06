@@ -6,6 +6,7 @@
 import * as L from "./local.js";
 import * as Sync from "./sync.js";
 import { imaWorkbook } from "./exports.js";
+import { CONTACT_EMAIL } from "./config.js";
 import { SYLLABI, SYLLABUS_ORDER, roleLabel, columnsFor, addCase as addToCounts, remaining, share, overallShare } from "./syllabi.js";
 import qrcode from "./vendor/qrcode.mjs";
 
@@ -1328,6 +1329,10 @@ function bind() {
   });
 
   $$(".tabs button").forEach((b) => b.addEventListener("click", () => go(b.dataset.view)));
+  $$(".contact-email").forEach((a) => {
+    a.textContent = CONTACT_EMAIL;
+    a.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Case Log")}`;
+  });
   $$(".guide-lang button").forEach((b) => b.addEventListener("click", () => setGuideLang(b.dataset.lang)));
   $$(".guide-start").forEach((b) => b.addEventListener("click", () => go("log")));
   $("#open-guide").addEventListener("click", () => go("guide"));
