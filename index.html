@@ -143,6 +143,15 @@
         <div class="filters">
           <input id="cases-q" type="search" placeholder="Search procedure, record no., attending" autocomplete="off"
                  aria-label="Search cases">
+          <label class="field sort-field"><span>Sort by</span>
+            <select id="cases-sort">
+              <option value="new">Date, newest first</option>
+              <option value="old">Date, oldest first</option>
+              <option value="procedure">Procedure (A to Z)</option>
+              <option value="category">Syllabus category</option>
+              <option value="role">Role</option>
+              <option value="attending">Attending</option>
+            </select></label>
           <label class="toggle"><input type="checkbox" id="cases-incomplete"> Missing record no., initials or age</label>
           <div class="filter-chip" id="cases-cat-filter" hidden>
             <span id="cases-cat-label"></span>

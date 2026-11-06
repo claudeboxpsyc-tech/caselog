@@ -29,7 +29,7 @@ const state = {
   view: "log",
   progress: null,
   progressStale: true,
-  cases: { q: "", incomplete: false, category: "", items: [], total: 0, stale: true },
+  cases: { q: "", incomplete: false, category: "", sort: "new", items: [], total: 0, stale: true },
   editing: null,
   editRole: "primary",
   resultIndex: -1,
@@ -47,6 +47,7 @@ async function api(path, { method = "GET", body } = {}) {
   if (url.pathname.endsWith("/api/settings")) return L.saveSettings(body);
   if (url.pathname.endsWith("/api/cases") && method === "GET") {
     return L.listCases({ q: p.get("q") || "", incomplete: p.get("incomplete") === "1", category: p.get("category") || "",
+      sort: p.get("sort") || "new",
       limit: +(p.get("limit") || 100), offset: +(p.get("offset") || 0) });
   }
   if (url.pathname.endsWith("/api/cases") && method === "POST") return L.createCase(body);
@@ -676,6 +677,7 @@ async function loadCases(append = false) {
   if (c.q) params.set("q", c.q);
   if (c.incomplete) params.set("incomplete", "1");
   if (c.category) params.set("category", c.category);
+  params.set("sort", c.sort);
   try {
     const r = await api(`/api/cases?${params}`);
     c.items = append ? c.items.concat(r.cases) : r.cases;
@@ -733,12 +735,26 @@ function renderCases() {
     box.append(h("p", { class: "empty" },
       c.q || c.incomplete || c.category ? "No cases match." : "No cases yet. Log your first one from the Log tab."));
   }
-  let day = null;
+  // A heading for each group: the day, the procedure, the category, the role or the attending.
+  const syl = state.meta.syllabus;
+  const group = {
+    new: (x) => formatDay(x.date),
+    old: (x) => formatDay(x.date),
+    procedure: (x) => x.procedure,
+    category: (x) => {
+      const cat = state.catByKey[x.category];
+      return cat ? (cat.no ? `${cat.no}. ${cat.en}` : cat.en) : "Not in this syllabus";
+    },
+    role: (x) => (syl.roles.find((r) => r.key === x.role) || { long: x.role }).long,
+    attending: (x) => x.attending || "No attending",
+  }[c.sort] || ((x) => formatDay(x.date));
+  let head = null;
   let list = null;
   for (const x of c.items) {
-    if (x.date !== day) {
-      day = x.date;
-      box.append(h("h2", { class: "day" }, formatDay(day)));
+    const g = group(x);
+    if (g !== head) {
+      head = g;
+      box.append(h("h2", { class: "day" }, g));
       list = h("ol", { class: "case-list" });
       box.append(list);
     }
@@ -1359,6 +1375,13 @@ function bind() {
       state.cases.q = e.target.value.trim();
       loadCases();
     }, 250);
+  });
+  state.cases.sort = load("caselog.casesSort", "new");
+  $("#cases-sort").value = state.cases.sort;
+  $("#cases-sort").addEventListener("change", (e) => {
+    state.cases.sort = e.target.value;
+    store("caselog.casesSort", state.cases.sort);
+    loadCases();
   });
   $("#cases-incomplete").addEventListener("change", (e) => {
     state.cases.incomplete = e.target.checked;

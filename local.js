@@ -238,7 +238,55 @@ const CP1252 = { "€": 0x80, "‚": 0x82, "ƒ": 0x83, "„": 0x84, "…": 0x85,
   "—": 0x97, "˜": 0x98, "™": 0x99, "š": 0x9a, "›": 0x9b, "œ": 0x9c, "ž": 0x9e, "Ÿ": 0x9f };
 const GARBLED = /[ÃÂ×][\u0080-¿€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/;
 const utf8 = new TextDecoder("utf-8", { fatal: true });
+// Each Hebrew letter is two bytes, D7 then 80-BF, so garbled Hebrew is "×" plus one character
+// per letter. When a program on the way also dropped some bytes (א and ם end in bytes 90 and 9D,
+// which Windows' Western encoding doesn't have, so they become "?" or "�"), decode pair by pair
+// and restore those from context: ם only ends a word.
+const byteOf = (ch) => {
+  const code = ch.codePointAt(0);
+  if (code < 0x100) return code;
+  if (CP1252[ch] !== undefined) return CP1252[ch];
+  return null;
+};
+function repairHebrewPairs(s) {
+  if (!/[×Ö][^\x00-\x7f]/.test(s)) return s;
+  const chars = [...s];
+  let out = "";
+  let letters = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const lead = chars[i] === "×" ? 0x5c0 : chars[i] === "Ö" ? 0x580 : 0;
+    const next = chars[i + 1];
+    if (lead && next !== undefined) {
+      const b = byteOf(next);
+      if (b !== null && b >= 0x80 && b <= 0xbf) {
+        const code = lead | (b & 0x3f);
+        // Only Hebrew letters, geresh / gershayim and the maqaf: anything else means this wasn't Hebrew.
+        if (!((code >= 0x5d0 && code <= 0x5ea) || code === 0x5f3 || code === 0x5f4 || code === 0x5be)) return s;
+        out += String.fromCharCode(code);
+        if (lead === 0x5c0) letters += 1;
+        i += 1;
+        continue;
+      }
+      if (lead === 0x5c0 && (next === "\ufffd" || next === "?")) {
+        const after = chars[i + 2];
+        out += after === undefined || /[\s.,;:'"()\-/]/.test(after) ? "ם" : "א";
+        letters += 1;
+        i += 1;
+        continue;
+      }
+    }
+    out += chars[i];
+  }
+  return letters ? out : s;
+}
+
 export function repairText(v) {
+  if (typeof v !== "string") return v;
+  const strict = repairStrict(v);
+  return GARBLED.test(strict) || /×[\ufffd?]/.test(strict) ? repairHebrewPairs(strict) : strict;
+}
+
+function repairStrict(v) {
   let s = v;
   for (let round = 0; round < 4 && typeof s === "string" && GARBLED.test(s); round++) {
     const bytes = [];
@@ -262,6 +310,7 @@ export function repairText(v) {
   return s;
 }
 
+const NEEDS_REPAIR = (x) => typeof x === "string" && (GARBLED.test(x) || /×[\ufffd?]/.test(x));
 const REPAIR_FIELDS = ["procedure", "record_no", "initials", "attending", "site", "notes"];
 
 // Fix cases already saved with garbled Hebrew (imported before the repair existed).
@@ -270,7 +319,7 @@ async function repairStored() {
   for (const c of live()) {
     const patch = {};
     for (const f of REPAIR_FIELDS) {
-      if (typeof c[f] === "string" && GARBLED.test(c[f])) {
+      if (NEEDS_REPAIR(c[f])) {
         const r = repairText(c[f]);
         if (r !== c[f]) patch[f] = r;
       }
@@ -344,7 +393,9 @@ export async function deleteCase(uid) {
 
 const view = (r) => ({ ...r, id: r.uid });
 
-export function listCases({ q = "", incomplete = false, category = "", limit = 100, offset = 0 } = {}) {
+export const SORTS = ["new", "old", "procedure", "category", "role", "attending"];
+
+export function listCases({ q = "", incomplete = false, category = "", sort = "new", limit = 100, offset = 0 } = {}) {
   q = q.trim().toLowerCase();
   let rows = live();
   if (q) {
@@ -353,7 +404,20 @@ export function listCases({ q = "", incomplete = false, category = "", limit = 1
   }
   if (incomplete) rows = rows.filter(missingPatient);
   if (category) rows = rows.filter((c) => c.category === category);
-  rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : String(b.created_at).localeCompare(String(a.created_at))));
+  const newest = (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : String(b.created_at).localeCompare(String(a.created_at)));
+  const text = (x) => String(x || "").toLocaleLowerCase();
+  const catIndex = Object.fromEntries(S.categories.map((c, i) => [c.key, i]));
+  const roleIndex = Object.fromEntries(S.roles.map((r, i) => [r.key, i]));
+  const by = {
+    new: newest,
+    old: (a, b) => -newest(a, b),
+    procedure: (a, b) => text(a.procedure).localeCompare(text(b.procedure)) || newest(a, b),
+    category: (a, b) => (catIndex[a.category] ?? 999) - (catIndex[b.category] ?? 999) || newest(a, b),
+    role: (a, b) => (roleIndex[a.role] ?? 99) - (roleIndex[b.role] ?? 99) || newest(a, b),
+    // Cases without an attending last.
+    attending: (a, b) => (!a.attending - !b.attending) || text(a.attending).localeCompare(text(b.attending), "he") || newest(a, b),
+  };
+  rows.sort(by[sort] || newest);
   return { total: rows.length, cases: rows.slice(offset, offset + limit).map(view) };
 }
 
