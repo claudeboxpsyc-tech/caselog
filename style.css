@@ -780,3 +780,10 @@ dialog::backdrop { background: rgba(13, 25, 29, 0.55); }
 }
 .sort-row button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--drape); }
 .sort-arrow { font-size: 15px; color: var(--drape); }
+
+/* Attending list: edit mode */
+.chip-edit { display: inline-flex; align-items: center; gap: 8px; border-style: dashed; }
+.chip-x { font-weight: 700; color: var(--steel); }
+.chip-hidden { opacity: 0.5; }
+.attending-edit { align-self: flex-start; min-height: 36px; padding: 0 4px; text-decoration: underline; }
+#attending-edit-hint { margin: 0; }

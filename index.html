@@ -83,6 +83,9 @@
           <fieldset class="block">
             <legend>Attending</legend>
             <div id="attending-chips" class="chips"></div>
+            <p class="muted" id="attending-edit-hint" hidden>Tap a name to hide it from this list. Faded names are hidden; tap
+              to show them again. Your cases aren't changed.</p>
+            <button type="button" class="btn quiet attending-edit" id="attending-edit" hidden>Edit list</button>
             <input id="f-attending" list="attending-list" placeholder="Name of the senior surgeon" autocomplete="off"
                    aria-label="Attending" maxlength="80">
             <datalist id="attending-list"></datalist>

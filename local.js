@@ -524,7 +524,8 @@ export function meta() {
     quick_picks: quickPicks(used),
     usage: Object.fromEntries(used.map((u) => [u.name, u.score])),
     custom_procedures: [...custom.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    attendings: recentDistinct("attending", 40),
+    attendings: recentDistinct("attending", 1000),
+    hidden_attendings: (settingsRecord() || {}).hidden_attendings || [],
     sites: recentDistinct("site", 10),
     settings: { resident_name: getKv("resident_name", ""), residency_start: (settingsRecord() || {}).residency_start || "" },
   };
@@ -535,6 +536,10 @@ export async function saveSettings(body) {
   if ("residency_start" in body) {
     const v = text(body.residency_start, 20);
     await saveSettingsRecord({ residency_start: v ? cleanDate(v) : "" });
+  }
+  if ("hidden_attendings" in body) {
+    const list = Array.isArray(body.hidden_attendings) ? body.hidden_attendings : [];
+    await saveSettingsRecord({ hidden_attendings: [...new Set(list.map((x) => text(x, 80)).filter(Boolean))].slice(0, 500) });
   }
   return { ok: true };
 }

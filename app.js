@@ -262,12 +262,39 @@ function renderQuickPicks() {
   );
 }
 
+// Every attending you've logged, most recent first. "Edit list" lets you hide names you no
+// longer need (and bring them back); hidden names sync to your other devices.
+async function setAttendingHidden(name, hidden) {
+  const cur = state.meta.hidden_attendings.filter((x) => x !== name);
+  if (hidden) cur.push(name);
+  try {
+    await api("/api/settings", { method: "PUT", body: { hidden_attendings: cur } });
+  } catch (ex) {
+    toast(ex.message);
+    return;
+  }
+  state.meta.hidden_attendings = cur;
+  renderAttendingChips();
+}
+
 function renderAttendingChips() {
   const current = $("#f-attending").value.trim();
-  const names = state.meta.attendings.slice(0, 4);
-  $("#attending-chips").replaceChildren(
-    ...names.map((n) =>
-      h("button", {
+  const hidden = new Set(state.meta.hidden_attendings);
+  const all = state.meta.attendings;
+  const editing = state.editAttendings && all.length > 0;
+  const chips = [];
+  for (const n of all) {
+    const isHidden = hidden.has(n);
+    if (isHidden && !editing) continue;
+    if (editing) {
+      chips.push(h("button", {
+        type: "button",
+        class: `chip chip-edit${isHidden ? " chip-hidden" : ""}`,
+        "aria-label": isHidden ? `Show ${n} again` : `Hide ${n}`,
+        onclick: () => setAttendingHidden(n, !isHidden),
+      }, h("bdi", {}, n), h("span", { class: "chip-x", "aria-hidden": "true" }, isHidden ? "+" : "×")));
+    } else {
+      chips.push(h("button", {
         type: "button",
         class: "chip",
         "aria-pressed": String(n === current),
@@ -275,9 +302,14 @@ function renderAttendingChips() {
           $("#f-attending").value = $("#f-attending").value.trim() === n ? "" : n;
           renderAttendingChips();
         },
-      }, n)
-    )
-  );
+      }, n));
+    }
+  }
+  $("#attending-chips").replaceChildren(...chips);
+  const btn = $("#attending-edit");
+  btn.hidden = !all.length;
+  btn.textContent = editing ? "Done" : "Edit list";
+  $("#attending-edit-hint").hidden = !editing;
 }
 
 function togglePick(p) {
@@ -989,6 +1021,9 @@ async function saveCase(e) {
     toast(ex.message);
     return;
   }
+  if (base.attending && state.meta.hidden_attendings.includes(base.attending)) {
+    await api("/api/settings", { method: "PUT", body: { hidden_attendings: state.meta.hidden_attendings.filter((x) => x !== base.attending) } }).catch(() => {});
+  }
   savePrefs({ site });
   resetLogForm();
   window.scrollTo({ top: 0 });
@@ -1422,6 +1457,10 @@ function bind() {
     $$("#exp-range button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     $("#exp-dates").hidden = b.dataset.range !== "dates";
     if (b.dataset.range === "dates") $("#exp-from").focus();
+  });
+  $("#attending-edit").addEventListener("click", () => {
+    state.editAttendings = !state.editAttendings;
+    renderAttendingChips();
   });
   $("#cases-incomplete").addEventListener("change", (e) => {
     state.cases.incomplete = e.target.checked;
