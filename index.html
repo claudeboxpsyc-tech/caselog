@@ -86,8 +86,8 @@
             <p class="muted" id="attending-edit-hint" hidden>Tap a name to hide it from this list. Faded names are hidden; tap
               to show them again. Your cases aren't changed.</p>
             <button type="button" class="btn quiet attending-edit" id="attending-edit" hidden>Edit list</button>
-            <input id="f-attending" list="attending-list" placeholder="Name of the senior surgeon" autocomplete="off"
-                   aria-label="Attending" maxlength="80">
+            <input id="f-attending" list="attending-list" placeholder="Senior surgeon (more than one: tap several, or use commas)" autocomplete="off"
+                   aria-label="Attending" maxlength="200">
             <datalist id="attending-list"></datalist>
           </fieldset>
 
@@ -465,7 +465,7 @@
         <label class="field"><span>Initials</span><input id="e-initials" autocapitalize="characters" maxlength="10"></label>
         <label class="field"><span>Age</span><input id="e-age" inputmode="decimal" maxlength="5"></label>
       </div>
-      <label class="field"><span>Attending</span><input id="e-attending" list="attending-list" maxlength="80"></label>
+      <label class="field"><span>Attending</span><input id="e-attending" list="attending-list" maxlength="200" placeholder="More than one: separate with commas"></label>
       <label class="field"><span>Department or hospital</span><input id="e-site" list="site-list" maxlength="80"></label>
       <label class="field"><span>Notes</span><textarea id="e-notes" rows="2" maxlength="500"></textarea></label>
       <p class="error" id="edit-error" role="alert"></p>

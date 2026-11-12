@@ -346,7 +346,7 @@ async function repairStored() {
 const CLEAN = {
   date: cleanDate, procedure: (v) => text(v, 120), category: cleanCategory, role: cleanRole,
   approach: cleanApproach, record_no: (v) => text(v, 40), initials: (v) => text(v, 10), age: cleanAge,
-  attending: (v) => text(v, 80), site: (v) => text(v, 80), notes: (v) => text(v, 500),
+  attending: (v) => text(v, 200).split(",").map((x) => x.trim()).filter(Boolean).join(", "), site: (v) => text(v, 80), notes: (v) => text(v, 500),
 };
 
 async function learn(items) {
@@ -502,10 +502,12 @@ function quickPicks(used) {
   return picks;
 }
 
+// A case can have several attendings, separated by commas: each is its own name in the list.
 function recentDistinct(field, limit) {
   const seen = [];
   for (const c of live().sort((a, b) => b.updated_at - a.updated_at)) {
-    if (c[field] && !seen.includes(c[field])) seen.push(c[field]);
+    const values = field === "attending" ? String(c[field] || "").split(",").map((x) => x.trim()) : [c[field]];
+    for (const v of values) if (v && !seen.includes(v)) seen.push(v);
     if (seen.length >= limit) break;
   }
   return seen;

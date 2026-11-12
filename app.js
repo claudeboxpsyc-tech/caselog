@@ -277,8 +277,10 @@ async function setAttendingHidden(name, hidden) {
   renderAttendingChips();
 }
 
+const attendingNames = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+
 function renderAttendingChips() {
-  const current = $("#f-attending").value.trim();
+  const current = attendingNames($("#f-attending").value);
   const hidden = new Set(state.meta.hidden_attendings);
   const all = state.meta.attendings;
   const editing = state.editAttendings && all.length > 0;
@@ -297,9 +299,11 @@ function renderAttendingChips() {
       chips.push(h("button", {
         type: "button",
         class: "chip",
-        "aria-pressed": String(n === current),
+        "aria-pressed": String(current.includes(n)),
         onclick: () => {
-          $("#f-attending").value = $("#f-attending").value.trim() === n ? "" : n;
+          // Tap to add this attending to the case, tap again to take them off.
+          const now = attendingNames($("#f-attending").value);
+          $("#f-attending").value = (now.includes(n) ? now.filter((x) => x !== n) : [...now, n]).join(", ");
           renderAttendingChips();
         },
       }, n));
@@ -1021,8 +1025,9 @@ async function saveCase(e) {
     toast(ex.message);
     return;
   }
-  if (base.attending && state.meta.hidden_attendings.includes(base.attending)) {
-    await api("/api/settings", { method: "PUT", body: { hidden_attendings: state.meta.hidden_attendings.filter((x) => x !== base.attending) } }).catch(() => {});
+  const used = attendingNames(base.attending);
+  if (used.some((n) => state.meta.hidden_attendings.includes(n))) {
+    await api("/api/settings", { method: "PUT", body: { hidden_attendings: state.meta.hidden_attendings.filter((x) => !used.includes(x)) } }).catch(() => {});
   }
   savePrefs({ site });
   resetLogForm();
