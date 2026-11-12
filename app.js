@@ -635,6 +635,8 @@ function resetLogForm() {
   state.forced = [];
   setRole("primary");
   fillPatient({});
+  $("#f-attending").value = ""; // each case starts with no attending chosen
+  renderAttendingChips();
   $("#f-notes").value = "";
   setDate("today");
 }
@@ -1040,6 +1042,8 @@ async function saveCase(e) {
     : main.name + (others.length ? ` with ${others.map((p) => p.name).join(", ")}` : "");
   toast(`Saved ${what}.` + (missing ? " Add the missing patient details in Cases." : ""), "Same patient", () => {
     fillPatient(patient);
+    $("#f-attending").value = base.attending; // same patient, same team
+    renderAttendingChips();
     $("#proc-search").focus();
   });
   afterChange();
